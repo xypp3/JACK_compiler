@@ -1,11 +1,14 @@
 CC=gcc
 CFLAGS= -g -Wall -std=c99
 TARGETS= lexer
-.PHONY= clean
+.PHONY= clean all
 
 # Default commands
+all: $(TARGETS)
+	make $(TARGETS)
+
 clean:
-	rm $(TARGETS) *.o
+	rm $(TARGETS) *.o ./lexer_jack_samples/*_my.txt 2> /dev/null
 
 # Executable comp
 lexer: lexer.o
