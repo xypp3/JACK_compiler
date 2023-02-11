@@ -25,7 +25,41 @@ Date Work Commenced:
 #include <string.h>
 
 // YOU CAN ADD YOUR OWN FUNCTIONS, DECLARATIONS AND VARIABLES HERE
+FILE *input_file;
+FILE *output_file;
 
+typedef struct {
+  int *stack;
+  int size;
+  int top;
+} Stack;
+
+void stack_init(Stack *stack, int size) {
+  stack->stack = (int *)malloc(sizeof(int) * size);
+  stack->size = size;
+  stack->top = -1;
+}
+
+int push(int number, Stack *stack) {
+  stack->top += 1;
+
+  if (stack->top >= stack->size)
+    return 0; // fail
+
+  stack->stack[stack->top] = number;
+  return 1;
+}
+
+int pop(int *pop_val, Stack *stack) {
+
+  if (stack->top == -1)
+    return 0; // fail
+
+  *pop_val = stack->stack[stack->top];
+  stack->top -= 1;
+
+  return 1;
+}
 // IMPLEMENT THE FOLLOWING functions
 //***********************************
 
