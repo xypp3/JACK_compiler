@@ -15,13 +15,29 @@ count=0
 for file in ./*.jack
 do
   ../lexer $file
-  # DELETE DEV NULL TO SHOW DIFFERENCES
-  if ! diff $quiet $file"_tokens.txt" $file"_tokens_mine.txt" &>/dev/null; then
-    echo -e "\e[1;31m $file FAILED\e[0m"
-    let count++
+  diff $quiet $file"_tokens.txt" $file"_tokens_mine.txt" &>/dev/null 
 
-  else
-    echo -e "\e[1;32m $file PASSED\e[0m"
+  case $? in
+    0)
+      echo -e "\e[1;32m PASSED:       $file \e[0m";
+      ;;
+    1)
+      echo -e "\e[1;31m FAILS:        $file \e[0m";
+      let count++;
+      ;;
+    2)
+      echo -e "\e[1;31m MISSING FILE: $file"_tokens_mine"\e[0m";
+      let count++;
+      ;;
+    *)
+      echo "unknown error"
+      ;;
+  esac
+
+  # rerun diff with verbose on fail to generate text differences
+        #${1:false} takes either $1 or undefined and undefined != --verbose
+  if [ ${1:-undefined} == "--verbose" ]; then
+    diff $quiet $file"_tokens.txt" $file"_tokens_mine.txt";
   fi
 
 done
