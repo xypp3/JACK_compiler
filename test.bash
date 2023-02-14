@@ -26,7 +26,7 @@ do
       let count++;
       ;;
     2)
-      echo -e "\e[1;31m MISSING FILE: $file"_tokens_mine"\e[0m";
+      echo -e "\e[1;31m MISSING FILE: $file"_tokens_mine.txt"\e[0m";
       let count++;
       ;;
     *)
