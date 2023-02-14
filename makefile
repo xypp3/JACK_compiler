@@ -5,10 +5,10 @@ TARGETS= lexer
 
 # Default commands
 all: $(TARGETS)
-	make $(TARGETS)
+	make $(TARGETS) 1>/dev/null
 
 clean:
-	rm $(TARGETS) *.o ./lexer_jack_samples/*_my.txt 2> /dev/null
+	rm $(TARGETS) *.o ./lexer_jack_samples/*_my.txt 2>/dev/null
 
 # Executable comp
 lexer: lexer.o
