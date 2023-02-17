@@ -205,9 +205,12 @@ Token GetNextToken() {
 
   /* skip all white space (' ', '\n', '\t', '\r') */
   /* AND skip all comments */
-  // only consider this var for the following loop
-  Comment_Types comment_type = NOT_STARTED;
-  while (is_white_space(next_char) || is_comment(next_char, &comment_type)) {
+  Comment_Types comment_type = NOT_STARTED; // tmp var for this loop
+  // check comment first so condition doesn't short circuit in wrong way
+  while (is_comment(next_char, &comment_type) || is_white_space(next_char)) {
+    // TODO: verify line number not double counted
+    newline_flag += next_char == '\n';
+
     if (comment_type == EOF_ERROR) {
       token.tp = ERR;
       strcpy(token.lx, "ERR: EOF in comment");
@@ -219,18 +222,17 @@ Token GetNextToken() {
 
     next_char = fgetc(input_file);
     push(next_char, &peek_str);
-    // TODO: verify if single line comment new lines double counted
-    // hypothesis: not going to double count
-    newline_flag += next_char == '\n';
   }
 
   /* get EOF */
   if (next_char == EOF) {
     push(next_char, &peek_str);
     token.tp = EOFile;
+    strcpy(token.lx, "EOF");
+    token.ln = newline_flag;
+    strcpy(token.fl, input_filename);
   }
 
-  token.tp = ERR;
   return token;
 }
 
