@@ -96,7 +96,7 @@ int peek_char(FILE *fptr) {
   return (peek_char == EOF) ? EOF : ungetc(peek_char, fptr);
 }
 
-int is_white_space(int next_char, int *newline_flag) {
+int is_white_space(int next_char) {
   newline_flag += next_char == '\n';
 
   return next_char == ' ' || next_char == '\n' || next_char == '\t' ||
@@ -142,7 +142,6 @@ int is_comment(int next_char, Comment_Types *comment_type) {
     }
   } else {
 
-    // TODO:
     if (next_char == EOF) {
       *comment_type = EOF_ERROR;
     }
@@ -150,12 +149,15 @@ int is_comment(int next_char, Comment_Types *comment_type) {
     switch (*comment_type) {
     case ONELINE:
       if (next_char == '\n') {
+        *comment_type = NOT_STARTED;
         return FALSE;
       }
 
       return TRUE;
     case MULTILINE:
-      if (next_char == '*' && peek_char(input_file) == '/') {
+      // previous character is * and current is /
+      if (peek_str.stack[peek_str.top] == '*' && next_char == '/') {
+        *comment_type = NOT_STARTED;
         return FALSE;
       }
 
@@ -202,16 +204,11 @@ Token GetNextToken() {
   push(next_char, &peek_str);
 
   /* skip all white space (' ', '\n', '\t', '\r') */
-  while (is_white_space(next_char, &newline_flag)) {
-    next_char = fgetc(input_file);
-    push(next_char, &peek_str);
-  }
-  /* skip all comments */
+  /* AND skip all comments */
   // only consider this var for the following loop
   Comment_Types comment_type = NOT_STARTED;
-  while (is_comment(next_char, &comment_type)) {
+  while (is_white_space(next_char) || is_comment(next_char, &comment_type)) {
     if (comment_type == EOF_ERROR) {
-      // TODO
       token.tp = ERR;
       strcpy(token.lx, "ERR: EOF in comment");
       token.ec = EofInCom;
@@ -222,6 +219,8 @@ Token GetNextToken() {
 
     next_char = fgetc(input_file);
     push(next_char, &peek_str);
+    // TODO: verify if single line comment new lines double counted
+    // hypothesis: not going to double count
     newline_flag += next_char == '\n';
   }
 
