@@ -37,10 +37,12 @@ typedef enum comment_types {
   NOT_STARTED,
   NOT_COMMENT,
   ONELINE,
-  MULTILINE
+  MULTILINE,
+  EOF_ERROR
 } Comment_Types;
 
 FILE *input_file;
+char *input_filename;
 Stack peek_str;
 int newline_flag;
 
@@ -119,35 +121,35 @@ int is_valid_identifier(int character, unsigned int position) {
          (position != 0 && is_digit(character));
 }
 
-int is_comment(int next_char, Comment_Types *is_comment_started) {
-  if (is_comment_started == NOT_STARTED) {
+int is_comment(int next_char, Comment_Types *comment_type) {
+  if (comment_type == NOT_STARTED) {
     if (next_char == '/') {
       switch (peek_char(input_file)) {
       case ('/'):
-        *is_comment_started = ONELINE;
+        *comment_type = ONELINE;
         return TRUE;
       case ('*'):
-        *is_comment_started = MULTILINE;
+        *comment_type = MULTILINE;
         return TRUE;
       default:
-        *is_comment_started = NOT_COMMENT;
+        *comment_type = NOT_COMMENT;
         return FALSE; // means is division/ multiplication or user error
       }
     } else {
       // cause first char isn't a backslash
-      *is_comment_started = NOT_COMMENT;
+      *comment_type = NOT_COMMENT;
       return FALSE;
     }
   } else {
 
     // TODO:
     if (next_char == EOF) {
+      *comment_type = EOF_ERROR;
     }
 
-    switch (*is_comment_started) {
+    switch (*comment_type) {
     case ONELINE:
       if (next_char == '\n') {
-        newline_flag++;
         return FALSE;
       }
 
@@ -173,15 +175,16 @@ int is_comment(int next_char, Comment_Types *is_comment_started) {
 // This requires opening the file and making any necessary initialisations of
 // the lexer If an error occurs, the function should return 0 if everything goes
 // well the function should return 1
-int InitLexer(char *file_name) {
+int InitLexer(char *file) {
   // open input file
-  if ((input_file = fopen(file_name, "r")) == NULL) {
+  if ((input_file = fopen(file, "r")) == NULL) {
     printf("Error! opening file");
 
     // Program exits if the file pointer returns NULL.
     return FALSE;
   }
-  // create output file
+
+  strcpy(input_filename, file);
 
   // init stack for PeekNextToken
   stack_init(&peek_str, MAX_LEXEM_SIZE);
@@ -205,8 +208,18 @@ Token GetNextToken() {
   }
   /* skip all comments */
   // only consider this var for the following loop
-  Comment_Types comment_has_begun = NOT_STARTED;
-  while (is_comment(next_char, &comment_has_begun)) {
+  Comment_Types comment_type = NOT_STARTED;
+  while (is_comment(next_char, &comment_type)) {
+    if (comment_type == EOF_ERROR) {
+      // TODO
+      token.tp = ERR;
+      strcpy(token.lx, "ERR: EOF in comment");
+      token.ec = EofInCom;
+      token.ln = newline_flag;
+      strcpy(token.fl, input_filename);
+      return token;
+    }
+
     next_char = fgetc(input_file);
     push(next_char, &peek_str);
     newline_flag += next_char == '\n';
