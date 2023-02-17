@@ -44,7 +44,8 @@ typedef enum comment_types {
 FILE *input_file;
 char *input_filename;
 Stack peek_str;
-int newline_flag;
+int token_line;
+int previous_token_line_num;
 
 /**************************************
  **************************************
@@ -96,29 +97,19 @@ int peek_char(FILE *fptr) {
   return (peek_char == EOF) ? EOF : ungetc(peek_char, fptr);
 }
 
-int is_white_space(int next_char) {
-  newline_flag += next_char == '\n';
-
-  return next_char == ' ' || next_char == '\n' || next_char == '\t' ||
-         next_char == '\r';
-}
-
-int is_lowercase(int character) {
-  return 97 <= character && character <= 122; // a <= character <= z
-}
-
-int is_uppercase(int character) {
-  return is_lowercase(character + 32); // uppercase char + 32 == lowercase char
-}
-
-int is_digit(int character) {
-  return 48 <= character && character <= 57; // 0 <= character <= 9
+int is_symbol(int character) {
+  return character == '(' || character == ')' || character == '[' ||
+         character == ']' || character == '{' || character == '}' ||
+         character == ',' || character == ';' || character == '.' ||
+         character == '=' || character == '+' || character == '-' ||
+         character == '*' || character == '/' || character == '&' ||
+         character == '|' || character == '~' || character == '<' ||
+         character == '>';
 }
 
 int is_valid_identifier(int character, unsigned int position) {
-  return (is_lowercase(character) || is_uppercase(character) ||
-          character == '_') ||
-         (position != 0 && is_digit(character));
+  return (islower(character) || isupper(character) || character == '_') ||
+         (position != 0 && isdigit(character));
 }
 
 int is_comment(int next_char, Comment_Types *comment_type) {
@@ -190,7 +181,8 @@ int InitLexer(char *file) {
 
   // init stack for PeekNextToken
   stack_init(&peek_str, MAX_LEXEM_SIZE);
-  newline_flag = 0;
+  token_line = 0;
+  previous_token_line_num = 0;
 
   return TRUE;
 }
@@ -199,23 +191,25 @@ int InitLexer(char *file) {
 Token GetNextToken() {
   Token token;
   int next_char;
+  previous_token_line_num = token_line;
 
   next_char = fgetc(input_file);
   push(next_char, &peek_str);
 
-  /* skip all white space (' ', '\n', '\t', '\r') */
+  /* skip all white space (' ', '\f', '\n', '\t', '\r', '\v') */
   /* AND skip all comments */
+  /* REUTNRS 1 ERR token */
   Comment_Types comment_type = NOT_STARTED; // tmp var for this loop
   // check comment first so condition doesn't short circuit in wrong way
-  while (is_comment(next_char, &comment_type) || is_white_space(next_char)) {
+  while (is_comment(next_char, &comment_type) || isspace(next_char)) {
     // TODO: verify line number not double counted
-    newline_flag += next_char == '\n';
+    token_line += next_char == '\n';
 
     if (comment_type == EOF_ERROR) {
       token.tp = ERR;
       strcpy(token.lx, "ERR: EOF in comment");
       token.ec = EofInCom;
-      token.ln = newline_flag;
+      token.ln = token_line;
       strcpy(token.fl, input_filename);
       return token;
     }
@@ -225,13 +219,93 @@ Token GetNextToken() {
   }
 
   /* get EOF */
+  /* RETURNS 1 EOFile token */
   if (next_char == EOF) {
     push(next_char, &peek_str);
     token.tp = EOFile;
     strcpy(token.lx, "EOF");
-    token.ln = newline_flag;
+    token.ln = token_line;
+    strcpy(token.fl, input_filename);
+
+    return token;
+  }
+
+  /* string constants */
+  /* RETURNS 2 ERR tokens, 1 STRING token */
+  if (next_char == '"') {
+    next_char = fgetc(input_file);
+    push(next_char, &peek_str);
+    // while string not ended get string
+    unsigned short pos = 0;
+    token.lx[pos] = '\0';
+    while (next_char != '"') {
+      // guards
+      if (next_char == EOF) {
+
+        return token;
+      } else if (next_char == '\n') {
+
+        return token;
+      }
+
+      // max store length of string is 127 char
+      if (pos < 128) {
+        token.lx[pos] = next_char;
+        token.lx[pos + 1] = '\0';
+      }
+
+      // iteration var
+      pos++;
+      next_char = fgetc(input_file);
+      push(next_char, &peek_str);
+    }
+    // tokenize string
+    token.tp = STRING;
+    token.ln = token_line;
     strcpy(token.fl, input_filename);
   }
+
+  /* numeric constants */
+  /* RETURNS 1 INT token */
+  if (isdigit(next_char)) {
+    next_char = fgetc(input_file);
+    push(next_char, &peek_str);
+    // while string not ended get string
+    unsigned short pos = 0;
+    token.lx[pos] = '\0';
+    while (isdigit(next_char)) {
+      // max store length of number of 127 digits
+      if (pos < 128) {
+        token.lx[pos] = next_char;
+        token.lx[pos + 1] = '\0';
+      }
+      // iteration var
+      pos++;
+      next_char = fgetc(input_file);
+      push(next_char, &peek_str);
+    }
+    // tokenize number
+    token.tp = INT;
+    token.ln = token_line;
+    strcpy(token.fl, input_filename);
+  }
+
+  /* symbols */
+  /* RETURNS 1 SYMBOL token */
+  if (is_symbol(next_char)) {
+    token.tp = SYMBOL;
+    token.lx[0] = next_char;
+    token.lx[1] = '\0';
+    token.ln = token_line;
+    strcpy(token.fl, input_filename);
+
+    return token;
+  }
+
+  // TODO: LOOK INTO isalpha() in types.c
+  /* reserved words */
+  /* boolean/null constants */
+  /* identifiers */
 
   return token;
 }
@@ -249,6 +323,8 @@ Token PeekNextToken() {
     // return character to source file
     ungetc(prev_char, input_file);
   }
+  // reset token line counter to line number of previous/unconsumed token
+  token_line = previous_token_line_num;
 
   return token;
 }
@@ -284,7 +360,7 @@ int main(int argc, char **argv) {
     return FALSE;
   }
 
-  InitLexer(argv[1]);
+  // InitLexer(argv[1]);
 
   fclose(output_file);
   return TRUE;
