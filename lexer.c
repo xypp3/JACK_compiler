@@ -241,9 +241,19 @@ Token GetNextToken() {
     while (next_char != '"') {
       // guards
       if (next_char == EOF) {
+        token.tp = ERR;
+        token.ec = EofInStr;
+        strcpy(token.lx, "ERR: EOF in String");
+        token.ln = token_line;
+        strcpy(token.fl, input_filename);
 
         return token;
       } else if (next_char == '\n') {
+        token.tp = ERR;
+        token.ec = NewLnInStr;
+        strcpy(token.lx, "ERR: Newline in String");
+        token.ln = token_line;
+        strcpy(token.fl, input_filename);
 
         return token;
       }
@@ -302,10 +312,43 @@ Token GetNextToken() {
     return token;
   }
 
-  // TODO: LOOK INTO isalpha() in types.c
   /* reserved words */
-  /* boolean/null constants */
+  char *reserved_words[] = {
+      "class", "constructor", "method", "function", "int",   "boolean", "char",
+      "void",  "var",         "static", "field",    "let",   "do",      "if",
+      "else",  "while",       "return", "true",     "false", "null",    "this"};
   /* identifiers */
+  unsigned short char_pos = 0;
+  if (is_valid_identifier(next_char, char_pos)) {
+    // set first char
+    token.lx[char_pos] = next_char;
+    token.lx[char_pos + 1] = '\0';
+    // setup loop
+    char_pos++;
+    next_char = fgetc(input_file);
+    push(next_char, &peek_str);
+    // loop
+    while (is_valid_identifier(next_char, char_pos)) {
+      // max store length of lexem of 127 characters
+      if (char_pos < 128) {
+        token.lx[char_pos] = next_char;
+        token.lx[char_pos + 1] = '\0';
+      }
+
+      char_pos++;
+      next_char = fgetc(input_file);
+      push(next_char, &peek_str);
+    }
+    /* tokenize if reserved word or if identifer */
+  }
+
+  /* illegal char */
+  token.tp = ERR;
+  token.ec = IllSym;
+  token.lx[char_pos] = next_char;
+  token.lx[char_pos + 1] = '\0';
+  token.ln = token_line;
+  strcpy(token.fl, input_filename);
 
   return token;
 }
