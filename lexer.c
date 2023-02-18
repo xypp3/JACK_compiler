@@ -162,6 +162,7 @@ int is_comment(int next_char, Comment_Types *comment_type) {
 
     if (next_char == EOF) {
       *comment_type = EOF_ERROR;
+      return TRUE; // cause it is a comment just a faulty one
     }
 
     switch (*comment_type) {
@@ -177,8 +178,13 @@ int is_comment(int next_char, Comment_Types *comment_type) {
       // previous character is * and current is /
       if (peek_str.stack[peek_str.top - 2] == '*' &&
           peek_str.stack[peek_str.top - 1] == '/') {
-
         *comment_type = NOT_STARTED;
+
+        // if multiline comment right after multiline comment do this
+        if (peek_str.stack[peek_str.top] == '/') {
+          return is_comment(next_char, comment_type);
+        }
+
         return FALSE;
       }
 
@@ -255,7 +261,8 @@ Token GetNextToken() {
   Comment_Types comment_type = NOT_STARTED; // tmp var for this loop
   // check comment first so condition doesn't short circuit in wrong way
   while (is_comment(next_char, &comment_type) || isspace(next_char)) {
-    // TODO: verify line number not double counted
+    // printf("%c, %d, ln:%d  ", next_char, comment_type, token_line);
+
     token_line += next_char == '\n';
 
     if (comment_type == EOF_ERROR) {
@@ -325,6 +332,8 @@ Token GetNextToken() {
     token.tp = STRING;
     token.ln = token_line;
     strcpy(token.fl, input_filename);
+
+    return token;
   }
 
   /* numeric constants */
@@ -476,10 +485,13 @@ int main(int argc, char **argv) {
     return FALSE;
   }
 
+  PeekNextToken();
   Token t = GetNextToken();
+  // printf("< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx, enumToStr(t.tp));
   fprintf(output_file, "< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx,
           enumToStr(t.tp));
   while (t.tp != EOFile && t.tp != ERR) {
+    PeekNextToken();
     t = GetNextToken();
     fprintf(output_file, "< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx,
             enumToStr(t.tp));
