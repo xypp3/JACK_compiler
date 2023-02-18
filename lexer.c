@@ -185,7 +185,7 @@ int is_comment(int next_char, Comment_Types *comment_type) {
       return TRUE;
 
     default:
-      printf("Error has occured, in is_comment()");
+      // printf("Error has occured, in is_comment()");
       return FALSE;
     }
   }
@@ -229,12 +229,12 @@ int InitLexer(char *file) {
     return FALSE;
   }
 
-  strcpy(input_filename, file);
+  strncpy(input_filename, file + 2, strlen(file));
 
   // init stack for PeekNextToken
   stack_init(&peek_str, MAX_LEXEM_SIZE);
-  token_line = 0;
-  previous_token_line_num = 0;
+  token_line = 1;
+  previous_token_line_num = 1;
 
   return TRUE;
 }
@@ -260,7 +260,7 @@ Token GetNextToken() {
 
     if (comment_type == EOF_ERROR) {
       token.tp = ERR;
-      strcpy(token.lx, "ERR: EOF in comment");
+      strcpy(token.lx, "Error: unexpected eof in comment");
       token.ec = EofInCom;
       token.ln = token_line;
       strcpy(token.fl, input_filename);
@@ -275,7 +275,7 @@ Token GetNextToken() {
   /* RETURNS 1 EOFile token */
   if (next_char == EOF) {
     token.tp = EOFile;
-    strcpy(token.lx, "EOF");
+    strcpy(token.lx, "End of File");
     token.ln = token_line;
     strcpy(token.fl, input_filename);
 
@@ -295,7 +295,7 @@ Token GetNextToken() {
       if (next_char == EOF) {
         token.tp = ERR;
         token.ec = EofInStr;
-        strcpy(token.lx, "ERR: EOF in String");
+        strcpy(token.lx, "Error: unexpected eof in string constant");
         token.ln = token_line;
         strcpy(token.fl, input_filename);
 
@@ -303,7 +303,7 @@ Token GetNextToken() {
       } else if (next_char == '\n') {
         token.tp = ERR;
         token.ec = NewLnInStr;
-        strcpy(token.lx, "ERR: Newline in String");
+        strcpy(token.lx, "Doesn't seem to have a thing");
         token.ln = token_line;
         strcpy(token.fl, input_filename);
 
@@ -330,9 +330,6 @@ Token GetNextToken() {
   /* numeric constants */
   /* RETURNS 1 INT token */
   if (isdigit(next_char)) {
-    next_char = fgetc(input_file);
-    push(next_char, &peek_str);
-    // while string not ended get string
     unsigned short pos = 0;
     token.lx[pos] = '\0';
     while (isdigit(next_char)) {
@@ -398,8 +395,6 @@ Token GetNextToken() {
     int garbage;
     pop(&garbage, &peek_str);
     /* tokenize if reserved word or if identifer */
-    printf("%d, %s, %d\n", is_reserved_word(token.lx), token.lx,
-           strcmp(token.lx, all_reserved_words[0]));
     if (is_reserved_word(token.lx)) {
       token.tp = RESWORD;
     } else {
@@ -415,8 +410,7 @@ Token GetNextToken() {
   /* illegal char */
   token.tp = ERR;
   token.ec = IllSym;
-  token.lx[char_pos] = next_char;
-  token.lx[char_pos + 1] = '\0';
+  strcpy(token.lx, "Error: illegal symbol in source file");
   token.ln = token_line;
   strcpy(token.fl, input_filename);
 
@@ -462,7 +456,12 @@ int main(int argc, char **argv) {
     return FALSE;
   }
 
-  InitLexer(argv[1]);
+  int is_not_err = InitLexer(argv[1]);
+  if (is_not_err == FALSE) {
+    printf("init err");
+    return FALSE;
+  }
+
   // init output file
   FILE *output_file;
   char output_filename[50];
@@ -478,9 +477,13 @@ int main(int argc, char **argv) {
   }
 
   Token t = GetNextToken();
-  printf("< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx, enumToStr(t.tp));
-  t = GetNextToken();
-  printf("< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx, enumToStr(t.tp));
+  fprintf(output_file, "< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx,
+          enumToStr(t.tp));
+  while (t.tp != EOFile && t.tp != ERR) {
+    t = GetNextToken();
+    fprintf(output_file, "< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx,
+            enumToStr(t.tp));
+  }
 
   StopLexer();
 
