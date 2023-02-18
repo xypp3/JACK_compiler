@@ -26,6 +26,7 @@ Date Work Commenced: 2023-Feb-09
 #define MAX_LEXEM_SIZE 128
 #define TRUE 1
 #define FALSE 0
+#define NUM_OF_RESWORDS 21
 
 typedef struct {
   int *stack;
@@ -35,14 +36,19 @@ typedef struct {
 
 typedef enum comment_types {
   NOT_STARTED,
-  NOT_COMMENT,
   ONELINE,
   MULTILINE,
   EOF_ERROR
 } Comment_Types;
 
+/* reserved words */
+char *all_reserved_words[] = {
+    "class", "constructor", "method", "function", "int",   "boolean", "char",
+    "void",  "var",         "static", "field",    "let",   "do",      "if",
+    "else",  "while",       "return", "true",     "false", "null",    "this"};
+
 FILE *input_file;
-char *input_filename;
+char input_filename[32]; // defined by header file
 Stack peek_str;
 int token_line;
 int previous_token_line_num;
@@ -68,8 +74,13 @@ int push(int number, Stack *stack) {
   if (stack->top >= stack->size) {
     stack->stack =
         (int *)realloc(stack->stack, (sizeof(int) * stack->size * 2));
-    if (stack->stack == NULL)
+
+    if (stack->stack == NULL) {
+      free(stack->stack);
       return FALSE;
+    }
+
+    stack->size *= 2;
   }
 
   stack->stack[stack->top] = number;
@@ -77,7 +88,6 @@ int push(int number, Stack *stack) {
 }
 
 int pop(int *pop_val, Stack *stack) {
-
   if (stack->top == -1)
     return FALSE; // fail
 
@@ -87,6 +97,18 @@ int pop(int *pop_val, Stack *stack) {
   return TRUE;
 }
 
+int clear_stack(Stack *stack) {
+
+  if (stack->top == -1)
+    return FALSE; // fail
+
+  while (stack->top > -1) {
+    int garbage;
+    pop(&garbage, stack);
+  }
+
+  return TRUE;
+}
 /**************************************
  **************************************
  ***************lexer******************
@@ -112,8 +134,16 @@ int is_valid_identifier(int character, unsigned int position) {
          (position != 0 && isdigit(character));
 }
 
+int is_reserved_word(char *word) {
+  for (int i = 0; i < NUM_OF_RESWORDS; i++) {
+    if (strcmp(word, all_reserved_words[i]) == 0)
+      return TRUE;
+  }
+  return FALSE;
+}
+
 int is_comment(int next_char, Comment_Types *comment_type) {
-  if (comment_type == NOT_STARTED) {
+  if (*comment_type == NOT_STARTED) {
     if (next_char == '/') {
       switch (peek_char(input_file)) {
       case ('/'):
@@ -123,12 +153,9 @@ int is_comment(int next_char, Comment_Types *comment_type) {
         *comment_type = MULTILINE;
         return TRUE;
       default:
-        *comment_type = NOT_COMMENT;
-        return FALSE; // means is division/ multiplication or user error
+        return FALSE;
       }
     } else {
-      // cause first char isn't a backslash
-      *comment_type = NOT_COMMENT;
       return FALSE;
     }
   } else {
@@ -145,14 +172,18 @@ int is_comment(int next_char, Comment_Types *comment_type) {
       }
 
       return TRUE;
+
     case MULTILINE:
       // previous character is * and current is /
-      if (peek_str.stack[peek_str.top] == '*' && next_char == '/') {
+      if (peek_str.stack[peek_str.top - 2] == '*' &&
+          peek_str.stack[peek_str.top - 1] == '/') {
+
         *comment_type = NOT_STARTED;
         return FALSE;
       }
 
       return TRUE;
+
     default:
       printf("Error has occured, in is_comment()");
       return FALSE;
@@ -160,6 +191,27 @@ int is_comment(int next_char, Comment_Types *comment_type) {
   }
   return FALSE;
 }
+
+char *enumToStr(TokenType type) {
+  switch (type) {
+  case RESWORD:
+    return "RESWORD";
+  case ID:
+    return "ID";
+  case INT:
+    return "INT";
+  case SYMBOL:
+    return "SYMBOL";
+  case STRING:
+    return "STRING";
+  case EOFile:
+    return "EOFile";
+  case ERR:
+    return "ERR";
+  }
+  return "null";
+}
+
 // IMPLEMENT THE FOLLOWING functions
 //***********************************
 
@@ -173,7 +225,7 @@ int InitLexer(char *file) {
   if ((input_file = fopen(file, "r")) == NULL) {
     printf("Error! opening file");
 
-    // Program exits if the file pointer returns NULL.
+    // Program exits if the file pointer returns NUL
     return FALSE;
   }
 
@@ -192,6 +244,7 @@ Token GetNextToken() {
   Token token;
   int next_char;
   previous_token_line_num = token_line;
+  clear_stack(&peek_str);
 
   next_char = fgetc(input_file);
   push(next_char, &peek_str);
@@ -221,7 +274,6 @@ Token GetNextToken() {
   /* get EOF */
   /* RETURNS 1 EOFile token */
   if (next_char == EOF) {
-    push(next_char, &peek_str);
     token.tp = EOFile;
     strcpy(token.lx, "EOF");
     token.ln = token_line;
@@ -294,10 +346,16 @@ Token GetNextToken() {
       next_char = fgetc(input_file);
       push(next_char, &peek_str);
     }
+    // return non digit character to input stream
+    ungetc(next_char, input_file);
+    int garbage;
+    pop(&garbage, &peek_str);
     // tokenize number
     token.tp = INT;
     token.ln = token_line;
     strcpy(token.fl, input_filename);
+
+    return token;
   }
 
   /* symbols */
@@ -312,12 +370,8 @@ Token GetNextToken() {
     return token;
   }
 
-  /* reserved words */
-  char *reserved_words[] = {
-      "class", "constructor", "method", "function", "int",   "boolean", "char",
-      "void",  "var",         "static", "field",    "let",   "do",      "if",
-      "else",  "while",       "return", "true",     "false", "null",    "this"};
-  /* identifiers */
+  /* identifiers/ reserved words */
+  /* RETURNS 1 ID or RESWORD token */
   unsigned short char_pos = 0;
   if (is_valid_identifier(next_char, char_pos)) {
     // set first char
@@ -339,7 +393,23 @@ Token GetNextToken() {
       next_char = fgetc(input_file);
       push(next_char, &peek_str);
     }
+    // return non digit character to input stream
+    ungetc(next_char, input_file);
+    int garbage;
+    pop(&garbage, &peek_str);
     /* tokenize if reserved word or if identifer */
+    printf("%d, %s, %d\n", is_reserved_word(token.lx), token.lx,
+           strcmp(token.lx, all_reserved_words[0]));
+    if (is_reserved_word(token.lx)) {
+      token.tp = RESWORD;
+    } else {
+      token.tp = ID;
+    }
+
+    token.ln = token_line;
+    strcpy(token.fl, input_filename);
+
+    return token;
   }
 
   /* illegal char */
@@ -392,8 +462,12 @@ int main(int argc, char **argv) {
     return FALSE;
   }
 
+  InitLexer(argv[1]);
+  // init output file
   FILE *output_file;
-  char *output_filename = strcat(argv[1], "_tokens_mine.txt");
+  char output_filename[50];
+  strcat(output_filename, argv[1]);
+  strcat(output_filename, "_tokens_mine.txt");
 
   if ((output_file = fopen(output_filename, "w")) == NULL) {
     printf("Error! opening file");
@@ -403,7 +477,12 @@ int main(int argc, char **argv) {
     return FALSE;
   }
 
-  // InitLexer(argv[1]);
+  Token t = GetNextToken();
+  printf("< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx, enumToStr(t.tp));
+  t = GetNextToken();
+  printf("< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx, enumToStr(t.tp));
+
+  StopLexer();
 
   fclose(output_file);
   return TRUE;
