@@ -460,8 +460,8 @@ int StopLexer() {
 // NOTE: main() NOT tested by autograder
 int main(int argc, char **argv) {
 
-  if (argc != 2) {
-    printf("Usage: lexer \"filename\"");
+  if (argc != 2 && argc != 3) {
+    printf("Usage: lexer \"filename\" [*peek]");
     return FALSE;
   }
 
@@ -485,21 +485,31 @@ int main(int argc, char **argv) {
     return FALSE;
   }
 
-  PeekNextToken();
+  Token p = PeekNextToken();
   Token t = GetNextToken();
-  // printf("< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx, enumToStr(t.tp));
-  fprintf(output_file, "< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx,
-          enumToStr(t.tp));
-  while (t.tp != EOFile && t.tp != ERR) {
-    PeekNextToken();
-    t = GetNextToken();
+  if (argc == 3 && strcmp(argv[2], "peek") == 0) {
+    fprintf(output_file, "< %s, %d, %s, %s >\n", p.fl, p.ln, p.lx,
+            enumToStr(p.tp));
+  } else {
     fprintf(output_file, "< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx,
             enumToStr(t.tp));
   }
-
-  StopLexer();
+  while (t.tp != EOFile && t.tp != ERR) {
+    p = PeekNextToken();
+    t = GetNextToken();
+    if (argc == 3 && strcmp(argv[2], "peek") == 0) {
+      fprintf(output_file, "< %s, %d, %s, %s >\n", p.fl, p.ln, p.lx,
+              enumToStr(p.tp));
+    } else {
+      fprintf(output_file, "< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx,
+              enumToStr(t.tp));
+    }
+  }
 
   fclose(output_file);
+  StopLexer();
+
+  // fclose(peek_file);
   return TRUE;
 }
 // do not remove the next line
