@@ -18,14 +18,14 @@ do
 
   case $? in
     0)
-      echo -e "\e[1;32m PASSED:       $file \e[0m";
+      printf "\e[1;32m%-10s\e[0m %-10s %s\n" "PASSED:" "GetToken" $file
       ;;
     1)
-      echo -e "\e[1;31m FAILS:        $file \e[0m";
+      printf "\e[1;31m%-10s\e[0m %-10s %s\n" "FAILED:" "GetToken" $file
       let count++;
       ;;
     2)
-      echo -e "\e[1;31m MISSING FILE: $file"_tokens_mine.txt"\e[0m";
+      printf "\e[1;31m%-10s\e[0m %-10s %s\n" "MISSING FILE:" "GetToken" $file
       let count++;
       ;;
     *)
@@ -38,21 +38,20 @@ do
 
   case $? in
     0)
-      echo -e "\e[1;32m PASSED:       PEEK:$file \e[0m";
+      printf "\e[1;32m%-10s\e[0m \e[1;33m%-10s\e[0m %s\n" "PASSED:" "PeekToken" $file
       ;;
     1)
-      echo -e "\e[1;31m FAILS:        PEEK:$file \e[0m";
+      printf "\e[1;31m%-10s\e[0m \e[1;33m%-10s\e[0m %s\n" "FAILED:" "PeekToken" $file
       let count++;
       ;;
     2)
-      echo -e "\e[1;31m MISSING FILE: PEEK:$file"_tokens_mine.txt"\e[0m";
+      printf "\e[1;31m%-10s\e[0m \e[1;33m%-10s\e[0m %s\n" "MISSING FILE:" "PeekToken" $file
       let count++;
       ;;
     *)
       echo "unknown error"
       ;;
   esac
-
 
   # rerun diff with verbose on fail to generate text differences
         #${1:false} takes either $1 or undefined and undefined != --verbose
