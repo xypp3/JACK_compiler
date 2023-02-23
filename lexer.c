@@ -30,8 +30,8 @@ Date Work Commenced: 2023-Feb-09
 
 typedef struct {
   int *stack;
-  int size;
-  int top;
+  unsigned int size;
+  unsigned int top;
 } Stack;
 
 typedef enum comment_types {
@@ -71,6 +71,7 @@ int static stack_init(Stack *stack, int size) {
 int push(int number, Stack *stack) {
   stack->top += 1;
 
+  // reallocation
   if (stack->top >= stack->size) {
     stack->stack =
         (int *)realloc(stack->stack, (sizeof(int) * stack->size * 2));
@@ -83,6 +84,7 @@ int push(int number, Stack *stack) {
     stack->size *= 2;
   }
 
+  // push var to top
   stack->stack[stack->top] = number;
   return TRUE;
 }
