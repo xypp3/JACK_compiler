@@ -9,13 +9,13 @@ cd ./jack_samples_lexer/
 
 echo "=========================================================================="
 echo "=========================================================================="
-
 count=0
 for file in ./*.jack
 do
   ../lexer $file
   diff $quiet $file"_tokens.txt" $file"_tokens_mine.txt" &>/dev/null 
 
+  # check get tokens 
   case $? in
     0)
       printf "\e[1;32m%-10s\e[0m %-10s %s\n" "PASSED:" "GetToken" $file
@@ -32,10 +32,11 @@ do
       echo "unknown error"
       ;;
   esac
-
+  # test peek token
   ../lexer $file peek
   diff $quiet $file"_tokens.txt" $file"_tokens_mine.txt" &>/dev/null 
 
+  # check get tokens 
   case $? in
     0)
       printf "\e[1;32m%-10s\e[0m \e[1;33m%-10s\e[0m %s\n" "PASSED:" "PeekToken" $file
@@ -62,5 +63,12 @@ do
 done
 
 echo "=========================================================================="
-echo -e "\e[1;31m $count\e[0m TESTS FAILED"
+case $count in
+  0)
+    echo -e "\e[1;32m ALL TESTS PASSED\e[0m"
+    ;;
+  *)
+    echo -e "\e[1;31m $count\e[0m TESTS FAILED"
+    ;;
+esac
 echo "=========================================================================="

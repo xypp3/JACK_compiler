@@ -93,8 +93,7 @@ int pop(int *pop_val, Stack *stack) {
   if (stack->top == -1)
     return FALSE; // fail
 
-  if (pop_val != NULL)
-    *pop_val = stack->stack[stack->top];
+  *pop_val = stack->stack[stack->top];
   stack->top -= 1;
 
   return TRUE;
@@ -106,7 +105,8 @@ int clear_stack(Stack *stack) {
     return FALSE; // fail
 
   while (stack->top > -1) {
-    pop(NULL, stack);
+    int garbage;
+    pop(&garbage, stack);
   }
 
   return TRUE;
@@ -356,7 +356,8 @@ Token GetNextToken() {
     }
     // return non digit character to input stream
     ungetc(next_char, input_file);
-    pop(NULL, &peek_str);
+    int garbage;
+    pop(&garbage, &peek_str);
     // tokenize number
     token.tp = INT;
     token.ln = token_line;
@@ -402,7 +403,8 @@ Token GetNextToken() {
     }
     // return non digit character to input stream
     ungetc(next_char, input_file);
-    pop(NULL, &peek_str);
+    int garbage;
+    pop(&garbage, &peek_str);
     /* tokenize if reserved word or if identifer */
     if (is_reserved_word(token.lx)) {
       token.tp = RESWORD;
@@ -461,7 +463,7 @@ int StopLexer() {
 int main(int argc, char **argv) {
 
   if (argc != 2 && argc != 3) {
-    printf("Usage: lexer \"filename\"");
+    printf("Usage: lexer \"filename\" [*peek]");
     return FALSE;
   }
 
@@ -485,11 +487,8 @@ int main(int argc, char **argv) {
     return FALSE;
   }
 
-  PeekNextToken();
-  PeekNextToken();
   Token p = PeekNextToken();
   Token t = GetNextToken();
-  // printf("< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx, enumToStr(t.tp));
   if (argc == 3 && strcmp(argv[2], "peek") == 0) {
     fprintf(output_file, "< %s, %d, %s, %s >\n", p.fl, p.ln, p.lx,
             enumToStr(p.tp));
@@ -498,8 +497,6 @@ int main(int argc, char **argv) {
             enumToStr(t.tp));
   }
   while (t.tp != EOFile && t.tp != ERR) {
-    PeekNextToken();
-    PeekNextToken();
     p = PeekNextToken();
     t = GetNextToken();
     if (argc == 3 && strcmp(argv[2], "peek") == 0) {
@@ -511,9 +508,10 @@ int main(int argc, char **argv) {
     }
   }
 
+  fclose(output_file);
   StopLexer();
 
-  fclose(output_file);
+  // fclose(peek_file);
   return TRUE;
 }
 // do not remove the next line
