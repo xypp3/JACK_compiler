@@ -310,7 +310,7 @@ Token GetNextToken() {
       } else if (next_char == '\n') {
         token.tp = ERR;
         token.ec = NewLnInStr;
-        strcpy(token.lx, "Doesn't seem to have a thing");
+        strcpy(token.lx, "Error: new line in string constant");
         token.ln = token_line;
         strcpy(token.fl, input_filename);
 
@@ -496,6 +496,12 @@ int main(int argc, char **argv) {
             enumToStr(t.tp));
   }
   while (t.tp != EOFile && t.tp != ERR) {
+    PeekNextToken();
+    PeekNextToken();
+    PeekNextToken();
+    PeekNextToken();
+    PeekNextToken();
+    PeekNextToken();
     PeekNextToken();
     PeekNextToken();
     p = PeekNextToken();
