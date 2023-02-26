@@ -267,10 +267,10 @@ Token GetNextToken() {
 
     if (comment_type == EOF_ERROR) {
       token.tp = ERR;
-      strcpy(token.lx, "Error: unexpected eof in comment");
+      strncpy(token.lx, "Error: unexpected eof in comment", 128);
       token.ec = EofInCom;
       token.ln = token_line;
-      strcpy(token.fl, input_filename);
+      strncpy(token.fl, input_filename, 32);
       return token;
     }
 
@@ -282,9 +282,9 @@ Token GetNextToken() {
   /* RETURNS 1 EOFile token */
   if (next_char == EOF) {
     token.tp = EOFile;
-    strcpy(token.lx, "End of File");
+    strncpy(token.lx, "End of File", 128);
     token.ln = token_line;
-    strcpy(token.fl, input_filename);
+    strncpy(token.fl, input_filename, 32);
 
     return token;
   }
@@ -302,17 +302,17 @@ Token GetNextToken() {
       if (next_char == EOF) {
         token.tp = ERR;
         token.ec = EofInStr;
-        strcpy(token.lx, "Error: unexpected eof in string constant");
+        strncpy(token.lx, "Error: unexpected eof in string constant", 128);
         token.ln = token_line;
-        strcpy(token.fl, input_filename);
+        strncpy(token.fl, input_filename, 32);
 
         return token;
       } else if (next_char == '\n') {
         token.tp = ERR;
         token.ec = NewLnInStr;
-        strcpy(token.lx, "Error: new line in string constant");
+        strncpy(token.lx, "Error: new line in string constant", 128);
         token.ln = token_line;
-        strcpy(token.fl, input_filename);
+        strncpy(token.fl, input_filename, 32);
 
         return token;
       }
@@ -331,7 +331,7 @@ Token GetNextToken() {
     // tokenize string
     token.tp = STRING;
     token.ln = token_line;
-    strcpy(token.fl, input_filename);
+    strncpy(token.fl, input_filename, 32);
 
     return token;
   }
@@ -358,7 +358,7 @@ Token GetNextToken() {
     // tokenize number
     token.tp = INT;
     token.ln = token_line;
-    strcpy(token.fl, input_filename);
+    strncpy(token.fl, input_filename, 32);
 
     return token;
   }
@@ -370,7 +370,7 @@ Token GetNextToken() {
     token.lx[0] = next_char;
     token.lx[1] = '\0';
     token.ln = token_line;
-    strcpy(token.fl, input_filename);
+    strncpy(token.fl, input_filename, 32);
 
     return token;
   }
@@ -409,7 +409,7 @@ Token GetNextToken() {
     }
 
     token.ln = token_line;
-    strcpy(token.fl, input_filename);
+    strncpy(token.fl, input_filename, 32);
 
     return token;
   }
@@ -417,9 +417,9 @@ Token GetNextToken() {
   /* illegal char */
   token.tp = ERR;
   token.ec = IllSym;
-  strcpy(token.lx, "Error: illegal symbol in source file");
+  strncpy(token.lx, "Error: illegal symbol in source file", 128);
   token.ln = token_line;
-  strcpy(token.fl, input_filename);
+  strncpy(token.fl, input_filename, 32);
 
   return token;
 }
