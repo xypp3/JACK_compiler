@@ -499,12 +499,6 @@ int main(int argc, char **argv) {
   while (t.tp != EOFile && t.tp != ERR) {
     PeekNextToken();
     PeekNextToken();
-    PeekNextToken();
-    PeekNextToken();
-    PeekNextToken();
-    PeekNextToken();
-    PeekNextToken();
-    PeekNextToken();
     p = PeekNextToken();
     t = GetNextToken();
     if (argc == 3 && strcmp(argv[2], "peek") == 0) {
