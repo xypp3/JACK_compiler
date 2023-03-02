@@ -258,37 +258,38 @@ Token GetNextToken() {
   /* skip all white space (' ', '\f', '\n', '\t', '\r', '\v') */
   /* AND skip all comments */
   /* REUTNRS 1 ERR token */
-  Comment_Types comment_type = NOT_STARTED; // tmp var for this loop
-  // check comment first so condition doesn't short circuit in wrong way
-  while (is_comment(next_char, &comment_type) || isspace(next_char)) {
-    // printf("%c, %d, ln:%d  ", next_char, comment_type, token_line);
+  {
+    Comment_Types comment_type = NOT_STARTED; // tmp var for this loop
+    // check comment first so condition doesn't short circuit in wrong way
+    while (is_comment(next_char, &comment_type) || isspace(next_char)) {
+      // printf("%c, %d, ln:%d  ", next_char, comment_type, token_line);
 
-    token_line += next_char == '\n';
+      token_line += next_char == '\n';
 
-    if (comment_type == EOF_ERROR) {
-      token.tp = ERR;
-      strncpy(token.lx, "Error: unexpected eof in comment", 128);
-      token.ec = EofInCom;
-      token.ln = token_line;
-      strncpy(token.fl, input_filename, 32);
-      return token;
+      if (comment_type == EOF_ERROR) {
+        token.tp = ERR;
+        strncpy(token.lx, "Error: unexpected eof in comment", 128);
+        token.ec = EofInCom;
+        token.ln = token_line;
+        strncpy(token.fl, input_filename, 32);
+        return token;
+      }
+
+      next_char = fgetc(input_file);
+      push(next_char, &peek_str);
     }
 
-    next_char = fgetc(input_file);
-    push(next_char, &peek_str);
+    /* get EOF */
+    /* RETURNS 1 EOFile token */
+    if (next_char == EOF) {
+      token.tp = EOFile;
+      strncpy(token.lx, "End of File", 128);
+      token.ln = token_line;
+      strncpy(token.fl, input_filename, 32);
+
+      return token;
+    }
   }
-
-  /* get EOF */
-  /* RETURNS 1 EOFile token */
-  if (next_char == EOF) {
-    token.tp = EOFile;
-    strncpy(token.lx, "End of File", 128);
-    token.ln = token_line;
-    strncpy(token.fl, input_filename, 32);
-
-    return token;
-  }
-
   /* string constants */
   /* RETURNS 2 ERR tokens, 1 STRING token */
   if (next_char == '"') {
@@ -377,41 +378,43 @@ Token GetNextToken() {
 
   /* identifiers/ reserved words */
   /* RETURNS 1 ID or RESWORD token */
-  unsigned short char_pos = 0;
-  if (is_valid_identifier(next_char, char_pos)) {
-    // set first char
-    token.lx[char_pos] = next_char;
-    token.lx[char_pos + 1] = '\0';
-    // setup loop
-    char_pos++;
-    next_char = fgetc(input_file);
-    push(next_char, &peek_str);
-    // loop
-    while (is_valid_identifier(next_char, char_pos)) {
-      // max store length of lexem of 127 characters
-      if (char_pos < 128) {
-        token.lx[char_pos] = next_char;
-        token.lx[char_pos + 1] = '\0';
-      }
-
+  {
+    unsigned short char_pos = 0;
+    if (is_valid_identifier(next_char, char_pos)) {
+      // set first char
+      token.lx[char_pos] = next_char;
+      token.lx[char_pos + 1] = '\0';
+      // setup loop
       char_pos++;
       next_char = fgetc(input_file);
       push(next_char, &peek_str);
-    }
-    // return non digit character to input stream
-    ungetc(next_char, input_file);
-    pop(NULL, &peek_str);
-    /* tokenize if reserved word or if identifer */
-    if (is_reserved_word(token.lx)) {
-      token.tp = RESWORD;
-    } else {
-      token.tp = ID;
-    }
+      // loop
+      while (is_valid_identifier(next_char, char_pos)) {
+        // max store length of lexem of 127 characters
+        if (char_pos < 128) {
+          token.lx[char_pos] = next_char;
+          token.lx[char_pos + 1] = '\0';
+        }
 
-    token.ln = token_line;
-    strncpy(token.fl, input_filename, 32);
+        char_pos++;
+        next_char = fgetc(input_file);
+        push(next_char, &peek_str);
+      }
+      // return non digit character to input stream
+      ungetc(next_char, input_file);
+      pop(NULL, &peek_str);
+      /* tokenize if reserved word or if identifer */
+      if (is_reserved_word(token.lx)) {
+        token.tp = RESWORD;
+      } else {
+        token.tp = ID;
+      }
 
-    return token;
+      token.ln = token_line;
+      strncpy(token.fl, input_filename, 32);
+
+      return token;
+    }
   }
 
   /* illegal char */
