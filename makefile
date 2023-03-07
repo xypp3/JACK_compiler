@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS= -g -Wall -std=c99
-TARGETS= lexer
+TARGETS= lexer parser
 .PHONY= clean all
 
 # Default commands

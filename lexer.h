@@ -1,4 +1,7 @@
 // header file for the lexer module
+#ifndef LEXER_H
+#define LEXER_H
+
 // #define TEST		// uncomment this line to run the self-grader
 
 // the TokenType enumerated data type represents all possible token types in a
@@ -25,3 +28,5 @@ int InitLexer(char *file);
 Token GetNextToken();
 Token PeekNextToken();
 int StopLexer();
+
+#endif
