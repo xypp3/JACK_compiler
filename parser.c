@@ -8,6 +8,16 @@
 #define TRUE 1
 #define FALSE 0
 
+// helper func
+int strcmpList(char *word, char **acceptCases, unsigned int numOfAccept) {
+  for (int i = 0; i < numOfAccept; i++) {
+    if (0 == strcmp(word, acceptCases[i]))
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
 void error(char *message, Token token) {
   printf("Expected: %s, got, %s, around line: %d", message, token.lx, token.ln);
   exit(1); // todo figure out better recovery
@@ -44,29 +54,101 @@ int operand();
 int classDeclar() {
 
   Token token = GetNextToken();
-  if (token.tp == RESWORD && strcmp(token.lx, "class")) {
+  if (RESWORD == token.tp && 0 == strcmp(token.lx, "class")) {
   } else {
     error("'class' keyword", token);
   }
 
   token = GetNextToken();
-  if (token.tp == ID) {
+  if (ID == token.tp) {
   } else {
     error("identifier", token);
   }
 
   token = GetNextToken();
-  if (token.tp == SYMBOL && strcmp(token.lx, "{")) {
+  if (SYMBOL == token.tp && 0 == strcmp(token.lx, "{")) {
   } else {
     error("symbol '{'", token);
   }
 
-  memberDeclar();
+  while (1 == memberDeclar())
+    ;
 
   token = GetNextToken();
-  if (token.tp == SYMBOL && strcmp(token.lx, "}")) {
+  if (SYMBOL == token.tp && 0 == strcmp(token.lx, "}")) {
   } else {
     error("symbol '}'", token);
+  }
+
+  return TRUE;
+}
+
+int memberDeclar() {
+  Token peekT = PeekNextToken();
+  // variable
+  char *variableStart[] = {"static", "field"};
+  if (RESWORD == peekT.tp && strcmpList(peekT.lx, variableStart, 2)) {
+    classVarDeclar();
+    return TRUE;
+  }
+
+  // subroutine
+  char *subroutineStart[] = {"constructor", "function", "method"};
+  if (RESWORD == peekT.tp && strcmpList(peekT.lx, subroutineStart, 3)) {
+    subroutineDeclar();
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+int classVarDeclar() {
+
+  Token token = GetNextToken();
+
+  char *variableStart[] = {"static", "field"};
+  if (RESWORD == token.tp && strcmpList(token.lx, variableStart, 2)) {
+  } else {
+    error("class variable declaration, starting with 'static' or 'field' ",
+          token);
+  }
+
+  token = PeekNextToken();
+  char *typeStart[] = {"int", "char", "boolean", "identifier"};
+  if (RESWORD == token.tp && strcmpList(token.lx, typeStart, 4)) {
+    type();
+  } else {
+    error("type declaration", token);
+  }
+
+  token = GetNextToken();
+  if (ID == token.tp) {
+  } else {
+    error("variable identifier", token);
+  }
+
+  // for the var declaration list
+  do {
+    token = PeekNextToken();
+
+    if (SYMBOL == token.tp && 0 == strcmp(token.lx, ",")) {
+    } else {
+      break; // !!!!!!!!!!! EXIT CONDITION
+    }
+
+    token = GetNextToken(); // got the ","
+    token = GetNextToken(); // got the identifier
+    if (ID == token.tp) {
+    } else {
+      error("variable declaration list", token);
+    }
+
+  } while (TRUE); // exit if no comma
+
+  token = GetNextToken();
+  if (SYMBOL == token.tp && strcmp(token.lx, ";")) {
+  } else {
+    error("symbol ';'", token);
   }
 
   return TRUE;
