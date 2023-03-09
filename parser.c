@@ -60,9 +60,11 @@ ParserWrapper operand();
 
 Boolean strcmpList(char *word, char **acceptCases) {
   int pos = 0;
+
   // if empty acceptCases return true (for accepting ID tokens)
   if (0 == strcmp(acceptCases[0], "\0"))
     return true;
+
   // else test acceptCases
   while (strcmp(acceptCases[pos], "\0") != 0) {
     if (0 == strcmp(word, acceptCases[pos]))
@@ -118,14 +120,6 @@ ParserWrapper consumeNonTerminal(ParserWrapper (*func)(), TokenTypeSet typeSet,
   if (token.tp == ERR)
     return (ParserWrapper){true, lexerErr, token};
 
-  // // check beginning for non-terminal
-  // if (type == token.tp && strcmpList(token.lx, acceptCases)) {
-  //   // ( consume HAS run && IS error ) OR ( consume HAS run && NO error )
-  //   /*    HAS run in this context means correct start of non-terminal but
-  //      encountered error in middle */
-  //   return func();
-  // }
-
   // check beginning for non-terminal
   for (int i = 0; i < typeSet.length; i++) {
     switch (typeSet.set[i]) {
@@ -173,17 +167,20 @@ ParserWrapper classDeclar() {
   ParserWrapper info;
 
   // 'class'
-  info = consumeTerminal(RESWORD, (char *[]){"class", "\0"}, classExpected);
+  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){RESWORD}},
+                         (char *[]){"class", "\0"}, classExpected);
   if (info.info.er != none)
     return info;
 
   // id
-  info = consumeTerminal(ID, (char *[]){"\0"}, idExpected);
+  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){ID}}, (char *[]){"\0"},
+                         idExpected);
   if (info.info.er != none)
     return info;
 
   // '{'
-  info = consumeTerminal(SYMBOL, (char *[]){"{", "\0"}, idExpected);
+  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){SYMBOL}},
+                         (char *[]){"{", "\0"}, idExpected);
   if (info.info.er != none)
     return info;
 
@@ -199,7 +196,8 @@ ParserWrapper classDeclar() {
   }
 
   // '}'
-  info = consumeTerminal(SYMBOL, (char *[]){"}", "\0"}, idExpected);
+  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){SYMBOL}},
+                         (char *[]){"}", "\0"}, idExpected);
   if (info.info.er != none)
     return info;
 
@@ -213,15 +211,24 @@ ParserWrapper memberDeclar() {
   ParserWrapper info;
 
   // classVarDeclar()
-
-  info = consumeNonTerminal(&classVarDeclar, (TokenType[]){ID, RESWORD},
+  info = consumeNonTerminal(&classVarDeclar,
+                            (TokenTypeSet){1, (TokenType[]){RESWORD}},
                             classVarDeclarStart);
+  if (info.hasRun)
+    return info;
 
   // subroutineDeclar()
+  info = consumeNonTerminal(&subroutineDeclar,
+                            (TokenTypeSet){1, (TokenType[]){RESWORD}},
+                            subroutineDeclarStart);
+  if (info.hasRun)
+    return info;
 
   // empty token returned
   Token token;
-  return (ParserWrapper){true, (ParserInfo){none, token}};
+  // although it the function HAS run the two options HAVEN'T so it's set to
+  //    false
+  return (ParserWrapper){false, (ParserInfo){none, token}};
 }
 
 /**********************************************************************
