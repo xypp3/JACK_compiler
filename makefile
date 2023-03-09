@@ -14,6 +14,12 @@ clean:
 lexer: lexer.o
 	$(CC) $(CFLAGS) -o lexer lexer.o
 
+parser: parser.o
+	$(CC) $(CFLAGS) -o parser parser.o
+
 # Object comp
 lexer.o: lexer.c lexer.h
 	$(CC) $(CFLAGS) -c lexer.c -o lexer.o
+
+parser.o: parser.c parser.h lexer.o
+	$(CC) $(CFLAGS) -c parser.c -o parser.o
