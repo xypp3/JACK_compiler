@@ -70,6 +70,11 @@ ParserWrapper consumeTerminal(TokenType type, char **acceptCases,
                               SyntaxErrors potentialErr) {
   Token token = GetNextToken();
 
+  // check lexer error
+  if (token.tp == ERR)
+    return (ParserWrapper){true, lexerErr, token};
+
+  // consume terminal token
   if (type == token.tp && 0 == strcmpList(token.lx, acceptCases)) {
     return (ParserWrapper){true, none, token};
   }
@@ -81,6 +86,10 @@ ParserWrapper consumeTerminal(TokenType type, char **acceptCases,
 ParserWrapper consumeNonTerminal(ParserWrapper (*func)(), TokenType type,
                                  char **acceptCases) {
   Token token = PeekNextToken();
+
+  // check lexer error
+  if (token.tp == ERR)
+    return (ParserWrapper){true, lexerErr, token};
 
   // check beginning for non-terminal
   if (type == token.tp && strcmpList(token.lx, acceptCases)) {
