@@ -8,52 +8,36 @@
 typedef enum { false, true } Boolean;
 
 typedef struct {
-  Boolean isRunning;
+  Boolean hasRun;
   ParserInfo info;
-} CompleteParserInfo;
-
-typedef struct {
-
-  enum {
-    success,   // upon success, finish excecuting
-    soft_fail, // upon failure, finish excecuting
-    hard_fail  // upon failure, stop excecuting
-  } FailState;
-
-  // on soft_fail type null
-  union {
-    Boolean isNull;
-    ParserInfo info;
-  } Data;
-
-} typeX;
+} ParserWrapper;
 
 // top level grammer
-ParserInfo classDeclar();
-CompleteParserInfo memberDeclar();
-ParserInfo classVarDeclar();
-ParserInfo type();
-ParserInfo subroutineDeclar();
-int paramList();
-int subroutineBody();
+ParserWrapper classDeclar();
+ParserWrapper memberDeclar();
+ParserWrapper classVarDeclar();
+ParserWrapper type();
+ParserWrapper subroutineDeclar();
+ParserWrapper paramList();
+ParserWrapper subroutineBody();
 
 // statements
-int stmt();
-int varStmt();
-int letStmt();
-int ifStmt();
-int whileStmt();
-int doStmt();
-int subroutineCall();
-int exprList();
-int returnStmt();
+ParserWrapper stmt();
+ParserWrapper varStmt();
+ParserWrapper letStmt();
+ParserWrapper ifStmt();
+ParserWrapper whileStmt();
+ParserWrapper doStmt();
+ParserWrapper subroutineCall();
+ParserWrapper exprList();
+ParserWrapper returnStmt();
 // expressions
-int expr();
-int relationalExpr();
-int arithmeticExpr();
-int term();
-int factor();
-int operand();
+ParserWrapper expr();
+ParserWrapper relationalExpr();
+ParserWrapper arithmeticExpr();
+ParserWrapper term();
+ParserWrapper factor();
+ParserWrapper operand();
 // function stubs above
 
 /**********************************************************************
@@ -81,41 +65,31 @@ Boolean strcmpList(char *word, char **acceptCases) {
   return false;
 }
 
-void error(char *message, Token token) {
-  printf("Expected: %s, got, %s, around line: %d", message, token.lx, token.ln);
-  exit(1); // todo figure out better recovery
-}
-
-ParserInfo consumeTerminal(TokenType type, char **acceptCases,
-                           SyntaxErrors potentialErr) {
+// Tokens returned unchanged
+ParserWrapper consumeTerminal(TokenType type, char **acceptCases,
+                              SyntaxErrors potentialErr) {
   Token token = GetNextToken();
 
   if (type == token.tp && 0 == strcmpList(token.lx, acceptCases)) {
-    return (ParserInfo){none, token};
+    return (ParserWrapper){true, none, token};
   }
 
-  return (ParserInfo){potentialErr, token};
+  return (ParserWrapper){true, potentialErr, token};
 }
 
-CompleteParserInfo consumeNonTerminal(ParserInfo (*func)(), TokenType type,
-                                      char **acceptCases) {
+// Tokens returned unchanged
+ParserWrapper consumeNonTerminal(ParserWrapper (*func)(), TokenType type,
+                                 char **acceptCases) {
   Token token = PeekNextToken();
-  // token->tp = type;
-  // strncpy(token->lx, "class", 10);
 
   // check beginning for non-terminal
   if (type == token.tp && strcmpList(token.lx, acceptCases)) {
-    ParserInfo info = func();
-    if (info.er == none) {
-      // parser IS running && is NOT error
-      return (CompleteParserInfo){true, info};
-    } else {
-      // parser is NOT running && IS error
-      return (CompleteParserInfo){false, info};
-    }
+    // ( consume HAS run && IS error ) OR ( consume HAS run && NO error )
+    return func();
   }
-  // parser is NOT running && is NOT error
-  return (CompleteParserInfo){false, (ParserInfo){none, token}};
+  // consume NOT run && MAYBE error
+  //    Top lvl. func. is for determining if error or not
+  return (ParserWrapper){false, (ParserInfo){none, token}};
 }
 
 /**********************************************************************
