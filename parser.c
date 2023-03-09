@@ -12,12 +12,21 @@ typedef struct {
   ParserInfo info;
 } ParserWrapper;
 
+typedef struct {
+  unsigned int length;
+  TokenType *set; // array
+} TokenTypeSet;
+
+// all return an EMPTY TOKEN upon success
 // top level grammer
 ParserWrapper classDeclar();
 ParserWrapper memberDeclar();
 ParserWrapper classVarDeclar();
+char *classVarDeclarStart[] = {"static", "field", "\0"};
 ParserWrapper type();
+char *typeStart[] = {"int", "char", "boolean", "\0"};
 ParserWrapper subroutineDeclar();
+char *subroutineDeclarStart[] = {"constructor", "function", "method", "\0"};
 ParserWrapper paramList();
 ParserWrapper subroutineBody();
 
@@ -66,7 +75,7 @@ Boolean strcmpList(char *word, char **acceptCases) {
 }
 
 // Tokens returned unchanged
-ParserWrapper consumeTerminal(TokenType type, char **acceptCases,
+ParserWrapper consumeTerminal(TokenTypeSet typeSet, char **acceptCases,
                               SyntaxErrors potentialErr) {
   Token token = GetNextToken();
 
@@ -75,15 +84,33 @@ ParserWrapper consumeTerminal(TokenType type, char **acceptCases,
     return (ParserWrapper){true, lexerErr, token};
 
   // consume terminal token
-  if (type == token.tp && 0 == strcmpList(token.lx, acceptCases)) {
-    return (ParserWrapper){true, none, token};
+  for (int i = 0; i < typeSet.length; i++) {
+    switch (typeSet.set[i]) {
+    case SYMBOL:
+    case RESWORD:
+      if (typeSet.set[i] == token.tp && strcmpList(token.lx, acceptCases))
+        return (ParserWrapper){true, none, token};
+      break;
+
+    case ID:
+    case INT:
+    case STRING:
+    case EOFile:
+      if (typeSet.set[i] == token.tp)
+        return (ParserWrapper){true, none, token};
+      break;
+
+    // error already processed (unless error hunting in future, hmh)
+    case ERR:
+      break;
+    }
   }
 
   return (ParserWrapper){true, potentialErr, token};
 }
 
 // Tokens returned unchanged
-ParserWrapper consumeNonTerminal(ParserWrapper (*func)(), TokenType type,
+ParserWrapper consumeNonTerminal(ParserWrapper (*func)(), TokenTypeSet typeSet,
                                  char **acceptCases) {
   Token token = PeekNextToken();
 
@@ -91,13 +118,45 @@ ParserWrapper consumeNonTerminal(ParserWrapper (*func)(), TokenType type,
   if (token.tp == ERR)
     return (ParserWrapper){true, lexerErr, token};
 
+  // // check beginning for non-terminal
+  // if (type == token.tp && strcmpList(token.lx, acceptCases)) {
+  //   // ( consume HAS run && IS error ) OR ( consume HAS run && NO error )
+  //   /*    HAS run in this context means correct start of non-terminal but
+  //      encountered error in middle */
+  //   return func();
+  // }
+
   // check beginning for non-terminal
-  if (type == token.tp && strcmpList(token.lx, acceptCases)) {
-    // ( consume HAS run && IS error ) OR ( consume HAS run && NO error )
-    return func();
+  for (int i = 0; i < typeSet.length; i++) {
+    switch (typeSet.set[i]) {
+    case SYMBOL:
+    case RESWORD:
+      if (typeSet.set[i] == token.tp && strcmpList(token.lx, acceptCases))
+        // ( consume HAS run && IS error ) OR ( consume HAS run && NO error )
+        /*    HAS run in this context means correct start of non-terminal but
+           encountered error in middle */
+        return func();
+      break;
+
+    case ID:
+    case INT:
+    case STRING:
+    case EOFile:
+      if (typeSet.set[i] == token.tp)
+        // ( consume HAS run && IS error ) OR ( consume HAS run && NO error )
+        /*    HAS run in this context means correct start of non-terminal but
+           encountered error in middle */
+        return func();
+      break;
+
+    // error already processed (unless error hunting in future, hmh)
+    case ERR:
+      break;
+    }
   }
+
   // consume NOT run && MAYBE error
-  //    Top lvl. func. is for determining if error or not
+  /*    Top lvl. func. is for determining if error or not   */
   return (ParserWrapper){false, (ParserInfo){none, token}};
 }
 
@@ -109,6 +168,61 @@ ParserWrapper consumeNonTerminal(ParserWrapper (*func)(), TokenType type,
  **********************************************************************
  **********************************************************************
  */
+
+ParserWrapper classDeclar() {
+  ParserWrapper info;
+
+  // 'class'
+  info = consumeTerminal(RESWORD, (char *[]){"class", "\0"}, classExpected);
+  if (info.info.er != none)
+    return info;
+
+  // id
+  info = consumeTerminal(ID, (char *[]){"\0"}, idExpected);
+  if (info.info.er != none)
+    return info;
+
+  // '{'
+  info = consumeTerminal(SYMBOL, (char *[]){"{", "\0"}, idExpected);
+  if (info.info.er != none)
+    return info;
+
+  // { memberDeclar() }
+  while (true) {
+    info = memberDeclar();
+
+    if (false == info.hasRun)
+      break;
+
+    if (none != info.info.er)
+      return info;
+  }
+
+  // '}'
+  info = consumeTerminal(SYMBOL, (char *[]){"}", "\0"}, idExpected);
+  if (info.info.er != none)
+    return info;
+
+  // empty token returned
+  Token token;
+  return (ParserWrapper){true, (ParserInfo){none, token}};
+}
+
+// classVarDeclar() || subroutineDeclar()
+ParserWrapper memberDeclar() {
+  ParserWrapper info;
+
+  // classVarDeclar()
+
+  info = consumeNonTerminal(&classVarDeclar, (TokenType[]){ID, RESWORD},
+                            classVarDeclarStart);
+
+  // subroutineDeclar()
+
+  // empty token returned
+  Token token;
+  return (ParserWrapper){true, (ParserInfo){none, token}};
+}
 
 /**********************************************************************
  **********************************************************************
@@ -149,9 +263,21 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // InitParser(argv[1]);
+  InitParser(argv[1]);
   // Parse();
-  // StopParser();
+
+  // ParserWrapper info =
+  //     consumeTerminal(RESWORD, (char *[]){"class", "\0"}, classExpected);
+  //
+  // printf("Has run: %d, data: %d, %s\n", info.hasRun, info.info.er,
+  //        info.info.tk.lx);
+  //
+  // info = consumeTerminal(ID, (char *[]){"\0"}, idExpected);
+  //
+  // printf("Has run: %d, data: %d, %s\n", info.hasRun, info.info.er,
+  //        info.info.tk.lx);
+
+  StopParser();
 
   return 1;
 }
