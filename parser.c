@@ -19,6 +19,7 @@ typedef struct {
 
 // all return an EMPTY TOKEN upon success
 // top level grammer
+char *emtpyStart[] = {"\0"};
 ParserWrapper classDeclar();
 ParserWrapper memberDeclar();
 ParserWrapper classVarDeclar();
@@ -180,7 +181,7 @@ ParserWrapper classDeclar() {
 
   // '{'
   info = consumeTerminal((TokenTypeSet){1, (TokenType[]){SYMBOL}},
-                         (char *[]){"{", "\0"}, idExpected);
+                         (char *[]){"{", "\0"}, openBraceExpected);
   if (info.info.er != none)
     return info;
 
@@ -197,7 +198,7 @@ ParserWrapper classDeclar() {
 
   // '}'
   info = consumeTerminal((TokenTypeSet){1, (TokenType[]){SYMBOL}},
-                         (char *[]){"}", "\0"}, idExpected);
+                         (char *[]){"}", "\0"}, closeBraceExpected);
   if (info.info.er != none)
     return info;
 
@@ -229,6 +230,7 @@ ParserWrapper memberDeclar() {
   if (0 != strncmp("}", token.lx, 1))
     return (ParserWrapper){true, (ParserInfo){memberDeclarErr, token}};
 
+  // hasn't run any of the internals so it can end
   return (ParserWrapper){false, (ParserInfo){none, token}};
 }
 
@@ -241,10 +243,50 @@ ParserWrapper classVarDeclar() {
   if (info.info.er != none)
     return info;
 
-  // empty token returned
+  // type()
+  info = consumeNonTerminal(
+      &type, (TokenTypeSet){2, (TokenType[]){ID, RESWORD}}, typeStart);
+  if (info.info.er != none)
+    return info;
+
+  // identifier
+  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){ID}}, emtpyStart,
+                         idExpected);
+  if (info.info.er != none)
+    return info;
+
+  // {',' identifier}
   Token token;
+  while (true) {
+    token = PeekNextToken();
+
+    if (SYMBOL != token.tp && 0 != strncmp(",", token.lx, 128))
+      break;
+
+    token = GetNextToken(); // gets ','
+
+    // identifier
+    info = consumeTerminal((TokenTypeSet){1, (TokenType[]){ID}}, emtpyStart,
+                           idExpected);
+    if (info.info.er != none)
+      return info;
+  }
+
+  // ';'
+  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){SYMBOL}},
+                         (char *[]){";", "\0"}, semicolonExpected);
+  if (info.info.er != none)
+    return info;
+
+  // empty token returned
   return (ParserWrapper){true, (ParserInfo){none, token}};
 }
+
+ParserWrapper type() {
+  return consumeTerminal((TokenTypeSet){2, (TokenType[]){ID, RESWORD}},
+                         typeStart, illegalType);
+}
+
 /**********************************************************************
  **********************************************************************
  **********************************************************************
