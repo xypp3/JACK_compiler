@@ -48,7 +48,10 @@ ParserWrapper relationalExpr();
 ParserWrapper arithmeticExpr();
 ParserWrapper term();
 ParserWrapper factor();
+char *factorStart[] = {"-", "~", "(", "true", "false", "null", "this"};
 ParserWrapper operand();
+char *operandStart[] = {"(", "true", "false", "null", "this"};
+
 // function stubs above
 
 /**********************************************************************
@@ -463,6 +466,143 @@ ParserWrapper stmt() {
   // todo: should I check if hasRun???????
   if (info.info.er != none)
     return info;
+
+  return (ParserWrapper){true, (ParserInfo){none, token}};
+}
+
+ParserWrapper varStmt() {
+  Token token;
+
+  // 'var'
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (RESWORD == token.tp && strcmpList(token.lx, (char *[]){"var", "\0"})) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
+  }
+
+  // type()
+  token = PeekNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (ID == token.tp ||
+      (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
+    type();
+    // should i check even though is already checked above??
+  } else {
+    return (ParserWrapper){false, (ParserInfo){illegalType, token}};
+  }
+
+  // identifier
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (ID == token.tp) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){idExpected, token}};
+  }
+
+  // {, identifier}
+  while (true) {
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+
+    // break case
+    if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){",", "\0"})) {
+      break;
+    }
+
+    token = GetNextToken(); // get ','
+    token = GetNextToken(); // get ID, hopefully
+    if (ERR == token.tp)
+      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    if (ID == token.tp) {
+    } else {
+      return (ParserWrapper){false, (ParserInfo){idExpected, token}};
+    }
+
+    // (to stretch whitespace in formatter)
+  }
+
+  // ';'
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){";", "\0"})) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){semicolonExpected, token}};
+  }
+
+  return (ParserWrapper){true, (ParserInfo){none, token}};
+}
+
+ParserWrapper letStmt() {
+  Token token;
+
+  // 'let'
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (RESWORD == token.tp && strcmpList(token.lx, (char *[]){"let", "\0"})) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
+  }
+
+  // identifier
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (ID == token.tp) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){idExpected, token}};
+  }
+
+  // [ '[' expr() ']' ]
+  token = PeekNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+
+  // if not equals THEN THERE is a'[' expr() ']'
+  if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){"=", "\0"})) {
+
+    // '['
+    token = GetNextToken();
+    if (ERR == token.tp)
+      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"[", "\0"})) {
+    } else { // todo: say there should be an openBracketError
+      return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
+    }
+
+    // expr()
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    if (RESWORD == token.tp && strcmpList(token.lx, ){
+    } else {
+      return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
+    }
+
+    // ']'
+    token = GetNextToken();
+    if (ERR == token.tp)
+      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"]", "\0"})) {
+    } else {
+      return (ParserWrapper){false, (ParserInfo){closeBracketExpected, token}};
+    }
+  }
+
+  // '='
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){"=", "\0"})) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){equalExpected, token}};
+  }
 
   return (ParserWrapper){true, (ParserInfo){none, token}};
 }
