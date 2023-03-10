@@ -8,7 +8,7 @@
 typedef enum { false, true } Boolean;
 
 typedef struct {
-  Boolean hasRun;
+  Boolean wasConsumed;
   ParserInfo info;
 } ParserWrapper;
 
@@ -33,6 +33,7 @@ ParserWrapper subroutineBody();
 
 // statements
 ParserWrapper stmt();
+char *stmtStart[] = {"var", "let", "if", "while", "do", "return", "\0"};
 ParserWrapper varStmt();
 ParserWrapper letStmt();
 ParserWrapper ifStmt();
@@ -68,91 +69,13 @@ Boolean strcmpList(char *word, char **acceptCases) {
 
   // else test acceptCases
   while (strcmp(acceptCases[pos], "\0") != 0) {
-    if (0 == strcmp(word, acceptCases[pos]))
+    if (0 == strncmp(word, acceptCases[pos], 128))
       return true;
 
     pos++;
   }
 
   return false;
-}
-
-// Tokens returned unchanged
-ParserWrapper consumeTerminal(TokenTypeSet typeSet, char **acceptCases,
-                              SyntaxErrors potentialErr) {
-  Token token = GetNextToken();
-
-  // check lexer error
-  if (token.tp == ERR)
-    return (ParserWrapper){true, lexerErr, token};
-
-  // consume terminal token
-  for (int i = 0; i < typeSet.length; i++) {
-    switch (typeSet.set[i]) {
-    case SYMBOL:
-    case RESWORD:
-      if (typeSet.set[i] == token.tp && strcmpList(token.lx, acceptCases))
-        return (ParserWrapper){true, none, token};
-      break;
-
-    case ID:
-    case INT:
-    case STRING:
-    case EOFile:
-      if (typeSet.set[i] == token.tp)
-        return (ParserWrapper){true, none, token};
-      break;
-
-    // error already processed (unless error hunting in future, hmh)
-    case ERR:
-      break;
-    }
-  }
-
-  return (ParserWrapper){true, potentialErr, token};
-}
-
-// Tokens returned unchanged
-ParserWrapper consumeNonTerminal(ParserWrapper (*func)(), TokenTypeSet typeSet,
-                                 char **acceptCases) {
-  Token token = PeekNextToken();
-
-  // check lexer error
-  if (token.tp == ERR)
-    return (ParserWrapper){true, lexerErr, token};
-
-  // check beginning for non-terminal
-  for (int i = 0; i < typeSet.length; i++) {
-    switch (typeSet.set[i]) {
-    case SYMBOL:
-    case RESWORD:
-      if (typeSet.set[i] == token.tp && strcmpList(token.lx, acceptCases))
-        // ( consume HAS run && IS error ) OR ( consume HAS run && NO error )
-        /*    HAS run in this context means correct start of non-terminal but
-           encountered error in middle */
-        return func();
-      break;
-
-    case ID:
-    case INT:
-    case STRING:
-    case EOFile:
-      if (typeSet.set[i] == token.tp)
-        // ( consume HAS run && IS error ) OR ( consume HAS run && NO error )
-        /*    HAS run in this context means correct start of non-terminal but
-           encountered error in middle */
-        return func();
-      break;
-
-    // error already processed (unless error hunting in future, hmh)
-    case ERR:
-      break;
-    }
-  }
-
-  // consume NOT run && MAYBE error
-  /*    Top lvl. func. is for determining if error or not   */
-  return (ParserWrapper){false, (ParserInfo){none, token}};
 }
 
 /**********************************************************************
@@ -166,194 +89,378 @@ ParserWrapper consumeNonTerminal(ParserWrapper (*func)(), TokenTypeSet typeSet,
 
 ParserWrapper classDeclar() {
   ParserWrapper info;
+  Token token;
 
-  // 'class'
-  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){RESWORD}},
-                         (char *[]){"class", "\0"}, classExpected);
-  if (info.info.er != none)
-    return info;
+  // class
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (SYMBOL == token.tp && strcmpList(token.lx, classVarDeclarStart)) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){classExpected, token}};
+  }
 
-  // id
-  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){ID}}, (char *[]){"\0"},
-                         idExpected);
-  if (info.info.er != none)
-    return info;
+  // ID
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (ID == token.tp) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){idExpected, token}};
+  }
 
   // '{'
-  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){SYMBOL}},
-                         (char *[]){"{", "\0"}, openBraceExpected);
-  if (info.info.er != none)
-    return info;
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"{", "\0"})) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){openBraceExpected, token}};
+  }
 
-  // { memberDeclar() }
+  // { memberDeclar }
   while (true) {
-    info = memberDeclar();
 
-    if (false == info.hasRun)
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+
+    // break case
+    if (RESWORD != token.tp && !strcmpList(token.lx, classVarDeclarStart) &&
+        !strcmpList(token.lx, subroutineDeclarStart))
       break;
 
-    if (none != info.info.er)
-      return info;
+    // class var declar
+    if (strcmpList(token.lx, classVarDeclarStart)) {
+      info = classVarDeclar();
+
+      if (info.info.er != none)
+        return info;
+    }
+
+    // subroutineDeclar
+    if (strcmpList(token.lx, subroutineDeclarStart)) {
+      info = subroutineDeclar();
+
+      if (info.info.er != none)
+        return info;
+    }
   }
 
   // '}'
-  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){SYMBOL}},
-                         (char *[]){"}", "\0"}, closeBraceExpected);
-  if (info.info.er != none)
-    return info;
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"}", "\0"})) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){closeBraceExpected, token}};
+  }
 
-  // empty token returned
-  Token token;
   return (ParserWrapper){true, (ParserInfo){none, token}};
-}
-
-// classVarDeclar() || subroutineDeclar()
-ParserWrapper memberDeclar() {
-  ParserWrapper info;
-
-  // classVarDeclar()
-  info = consumeNonTerminal(&classVarDeclar,
-                            (TokenTypeSet){1, (TokenType[]){RESWORD}},
-                            classVarDeclarStart);
-  if (info.hasRun)
-    return info;
-
-  // subroutineDeclar()
-  info = consumeNonTerminal(&subroutineDeclar,
-                            (TokenTypeSet){1, (TokenType[]){RESWORD}},
-                            subroutineDeclarStart);
-  if (info.hasRun)
-    return info;
-
-  // check for error, memberDeclarErr
-  Token token = PeekNextToken();
-  if (0 != strncmp("}", token.lx, 1))
-    return (ParserWrapper){true, (ParserInfo){memberDeclarErr, token}};
-
-  // hasn't run any of the internals so it can end
-  return (ParserWrapper){false, (ParserInfo){none, token}};
 }
 
 ParserWrapper classVarDeclar() {
   ParserWrapper info;
+  Token token;
 
-  // 'static' || 'field'
-  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){RESWORD}},
-                         subroutineDeclarStart, classVarErr);
-  if (info.info.er != none)
-    return info;
+  // 'static' | 'field'
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (RESWORD == token.tp && strcmpList(token.lx, classVarDeclarStart)) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){classVarErr, token}};
+  }
 
   // type()
-  info = consumeNonTerminal(
-      &type, (TokenTypeSet){2, (TokenType[]){ID, RESWORD}}, typeStart);
-  if (false == info.hasRun || info.info.er != none)
-    // PRAYING THIS WORKS
-    return (ParserWrapper){info.hasRun,
-                           (ParserInfo){illegalType, info.info.tk}};
+  token = PeekNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (ID == token.tp ||
+      (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
+    type();
+    // should i check even though is already checked above??
+  } else {
+    return (ParserWrapper){false, (ParserInfo){illegalType, token}};
+  }
 
   // identifier
-  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){ID}}, emtpyStart,
-                         idExpected);
-  if (info.info.er != none)
-    return info;
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (ID == token.tp) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){idExpected, token}};
+  }
 
-  // {',' identifier}
-  Token token;
+  // {, identifier}
   while (true) {
     token = PeekNextToken();
+    if (ERR == token.tp)
+      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
 
-    if (SYMBOL != token.tp && 0 != strncmp(",", token.lx, 128))
+    // break case
+    if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){",", "\0"})) {
       break;
+    }
 
-    token = GetNextToken(); // gets ','
+    token = GetNextToken(); // get ','
+    token = GetNextToken(); // get ID, hopefully
+    if (ERR == token.tp)
+      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    if (ID == token.tp) {
+    } else {
+      return (ParserWrapper){false, (ParserInfo){idExpected, token}};
+    }
 
-    // identifier
-    info = consumeTerminal((TokenTypeSet){1, (TokenType[]){ID}}, emtpyStart,
-                           idExpected);
-    if (info.info.er != none)
-      return info;
+    // (to stretch whitespace in formatter)
   }
 
   // ';'
-  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){SYMBOL}},
-                         (char *[]){";", "\0"}, semicolonExpected);
-  if (info.info.er != none)
-    return info;
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){";", "\0"})) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){semicolonExpected, token}};
+  }
 
-  // empty token returned
   return (ParserWrapper){true, (ParserInfo){none, token}};
 }
 
 ParserWrapper type() {
-  return consumeTerminal((TokenTypeSet){2, (TokenType[]){ID, RESWORD}},
-                         typeStart, illegalType);
+  Token token;
+
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (ID == token.tp ||
+      (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){illegalType, token}};
+  }
+
+  return (ParserWrapper){true, (ParserInfo){none, token}};
 }
 
 ParserWrapper subroutineDeclar() {
-  ParserWrapper info;
+  Token token;
 
   // 'constructor' | 'function' | 'method'
-  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){RESWORD}},
-                         subroutineDeclarStart, subroutineDeclarErr);
-  if (info.info.er != none)
-    return info;
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (RESWORD == token.tp && strcmpList(token.lx, subroutineDeclarStart)) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){subroutineDeclarErr, token}};
+  }
 
   // type() | 'void'
-  //    type()
-  info = consumeNonTerminal(
-      &type, (TokenTypeSet){2, (TokenType[]){ID, RESWORD}}, typeStart);
-  if (info.hasRun) {
-    if (info.info.er != none)
-      return info;
-
+  token = PeekNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (ID == token.tp ||
+      (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
+    type();
   } else {
     // 'void'
-    info = consumeTerminal((TokenTypeSet){1, (TokenType[]){RESWORD}},
-                           (char *[]){"void", "\0"}, syntaxError);
-    if (info.info.er != none)
-      return info;
-
-    // if this part errors (type() | 'void') then should result in syntaxError
+    token = GetNextToken(); // already checked if type == err, above
+    if (RESWORD == token.tp && strcmpList(token.lx, (char *[]){"void", "\0"})) {
+    } else {
+      return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
+    }
   }
 
   // identifier
-  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){ID}}, emtpyStart,
-                         idExpected);
-  if (info.info.er != none)
-    return info;
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (ID == token.tp) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){idExpected, token}};
+  }
 
   // '('
-  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){SYMBOL}},
-                         (char *[]){"(", "\0"}, openParenExpected);
-  if (info.info.er != none)
-    return info;
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"(", "\0"})) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){openParenExpected, token}};
+  }
 
-  // paramlist()
-  info = consumeNonTerminal(
-      &paramList, (TokenTypeSet){2, (TokenType[]){ID, RESWORD}}, typeStart);
-  if (!info.hasRun || info.info.er != none) {
-    Token t = PeekNextToken();
-    // if not empty paramList
-    if (SYMBOL != t.tp && 0 != strncmp(")", t.lx, 128))
-      return info;
+  // paramList()
+  token = PeekNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+
+  // if paramList() is NOT empty
+  if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){")", "\0"})) {
+
+    if (ID == token.tp ||
+        (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
+
+      ParserWrapper info = paramList();
+
+      if (!info.wasConsumed && info.info.er != none)
+        return info;
+
+    } else {
+      return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
+    }
   }
 
   // ')'
-  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){SYMBOL}},
-                         (char *[]){")", "\0"}, closeParenExpected);
-  if (info.info.er != none)
-    return info;
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){")", "\0"})) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){closeParenExpected, token}};
+  }
 
   // subroutineBody()
-  info = consumeNonTerminal(&subroutineBody,
-                            (TokenTypeSet){1, (TokenType[]){SYMBOL}},
-                            (char *[]){"{", "\0"});
-  // if errors before body runs
-  Token token;
-  if (!info.hasRun)
-    return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
+  token = PeekNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"{", "\0"})) {
 
-  // if errors within subroutineBody
+    ParserWrapper info = subroutineBody();
+
+    if (!info.wasConsumed && info.info.er != none)
+      return info;
+
+  } else {
+    return (ParserWrapper){false, (ParserInfo){openBraceExpected, token}};
+  }
+
+  return (ParserWrapper){true, (ParserInfo){none, token}};
+}
+
+ParserWrapper paramList() {
+  Token token;
+
+  // type()
+  token = PeekNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (ID == token.tp ||
+      (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
+    type();
+    // should i check even though is already checked above??
+  } else {
+    return (ParserWrapper){false, (ParserInfo){illegalType, token}};
+  }
+
+  // identifier
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (ID == token.tp) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){idExpected, token}};
+  }
+
+  // {',' type() identifier}
+  while (true) {
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+
+    // break case
+    if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){",", "\0"})) {
+      break;
+    }
+
+    token = GetNextToken(); // get ','
+    // type()
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    if (ID == token.tp ||
+        (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
+      type();
+      // should i check even though is already checked above??
+    } else {
+      return (ParserWrapper){false, (ParserInfo){illegalType, token}};
+    }
+
+    // identifier
+    token = GetNextToken();
+    if (ERR == token.tp)
+      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    if (ID == token.tp) {
+    } else {
+      return (ParserWrapper){false, (ParserInfo){idExpected, token}};
+    }
+
+    // (to stretch whitespace in formatter)
+  }
+
+  return (ParserWrapper){true, (ParserInfo){none, token}};
+}
+
+ParserWrapper subroutineBody() {
+  Token token;
+
+  // '{'
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"{", "\0"})) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){openBraceExpected, token}};
+  }
+
+  // stmt()
+  token = PeekNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (RESWORD == token.tp && strcmpList(token.lx, stmtStart)) {
+    ParserWrapper info = stmt();
+
+    // todo: should I check if hasRun???????
+    if (info.info.er != none)
+      return info;
+  } else {
+    return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
+  }
+
+  // '}'
+  token = GetNextToken();
+  if (ERR == token.tp)
+    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"}", "\0"})) {
+  } else {
+    return (ParserWrapper){false, (ParserInfo){closeBraceExpected, token}};
+  }
+
+  return (ParserWrapper){true, (ParserInfo){none, token}};
+}
+
+ParserWrapper stmt() {
+  Token token;
+  ParserWrapper info;
+
+  token = PeekNextToken();
+
+  if (0 == strncmp(token.lx, "var", 128)) {
+    info = varStmt();
+  } else if (0 == strncmp(token.lx, "let", 128)) {
+    info = letStmt();
+  } else if (0 == strncmp(token.lx, "if", 128)) {
+    info = ifStmt();
+  } else if (0 == strncmp(token.lx, "while", 128)) {
+    info = whileStmt();
+  } else if (0 == strncmp(token.lx, "do", 128)) {
+    info = doStmt();
+  } else if (0 == strncmp(token.lx, "return", 128)) {
+    info = returnStmt();
+  } else {
+    return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
+  }
+
+  // todo: should I check if hasRun???????
   if (info.info.er != none)
     return info;
 
