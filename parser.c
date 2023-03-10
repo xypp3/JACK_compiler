@@ -224,13 +224,27 @@ ParserWrapper memberDeclar() {
   if (info.hasRun)
     return info;
 
-  // empty token returned
-  Token token;
-  // although it the function HAS run the two options HAVEN'T so it's set to
-  //    false
+  // check for error, memberDeclarErr
+  Token token = PeekNextToken();
+  if (0 != strncmp("}", token.lx, 1))
+    return (ParserWrapper){true, (ParserInfo){memberDeclarErr, token}};
+
   return (ParserWrapper){false, (ParserInfo){none, token}};
 }
 
+ParserWrapper classVarDeclar() {
+  ParserWrapper info;
+
+  // 'static' || 'field'
+  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){RESWORD}},
+                         subroutineDeclarStart, classVarErr);
+  if (info.info.er != none)
+    return info;
+
+  // empty token returned
+  Token token;
+  return (ParserWrapper){true, (ParserInfo){none, token}};
+}
 /**********************************************************************
  **********************************************************************
  **********************************************************************
