@@ -246,8 +246,10 @@ ParserWrapper classVarDeclar() {
   // type()
   info = consumeNonTerminal(
       &type, (TokenTypeSet){2, (TokenType[]){ID, RESWORD}}, typeStart);
-  if (info.info.er != none)
-    return info;
+  if (false == info.hasRun || info.info.er != none)
+    // PRAYING THIS WORKS
+    return (ParserWrapper){info.hasRun,
+                           (ParserInfo){illegalType, info.info.tk}};
 
   // identifier
   info = consumeTerminal((TokenTypeSet){1, (TokenType[]){ID}}, emtpyStart,
@@ -285,6 +287,77 @@ ParserWrapper classVarDeclar() {
 ParserWrapper type() {
   return consumeTerminal((TokenTypeSet){2, (TokenType[]){ID, RESWORD}},
                          typeStart, illegalType);
+}
+
+ParserWrapper subroutineDeclar() {
+  ParserWrapper info;
+
+  // 'constructor' | 'function' | 'method'
+  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){RESWORD}},
+                         subroutineDeclarStart, subroutineDeclarErr);
+  if (info.info.er != none)
+    return info;
+
+  // type() | 'void'
+  //    type()
+  info = consumeNonTerminal(
+      &type, (TokenTypeSet){2, (TokenType[]){ID, RESWORD}}, typeStart);
+  if (info.hasRun) {
+    if (info.info.er != none)
+      return info;
+
+  } else {
+    // 'void'
+    info = consumeTerminal((TokenTypeSet){1, (TokenType[]){RESWORD}},
+                           (char *[]){"void", "\0"}, syntaxError);
+    if (info.info.er != none)
+      return info;
+
+    // if this part errors (type() | 'void') then should result in syntaxError
+  }
+
+  // identifier
+  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){ID}}, emtpyStart,
+                         idExpected);
+  if (info.info.er != none)
+    return info;
+
+  // '('
+  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){SYMBOL}},
+                         (char *[]){"(", "\0"}, openParenExpected);
+  if (info.info.er != none)
+    return info;
+
+  // paramlist()
+  info = consumeNonTerminal(
+      &paramList, (TokenTypeSet){2, (TokenType[]){ID, RESWORD}}, typeStart);
+  if (!info.hasRun || info.info.er != none) {
+    Token t = PeekNextToken();
+    // if not empty paramList
+    if (SYMBOL != t.tp && 0 != strncmp(")", t.lx, 128))
+      return info;
+  }
+
+  // ')'
+  info = consumeTerminal((TokenTypeSet){1, (TokenType[]){SYMBOL}},
+                         (char *[]){")", "\0"}, closeParenExpected);
+  if (info.info.er != none)
+    return info;
+
+  // subroutineBody()
+  info = consumeNonTerminal(&subroutineBody,
+                            (TokenTypeSet){1, (TokenType[]){SYMBOL}},
+                            (char *[]){"{", "\0"});
+  // if errors before body runs
+  Token token;
+  if (!info.hasRun)
+    return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
+
+  // if errors within subroutineBody
+  if (info.info.er != none)
+    return info;
+
+  return (ParserWrapper){true, (ParserInfo){none, token}};
 }
 
 /**********************************************************************
