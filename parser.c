@@ -18,6 +18,7 @@ typedef struct {
 } TokenTypeSet;
 
 // predefined type sets
+TokenTypeSet idSet = {1, (TokenType[]){ID}};
 TokenTypeSet symbolSet = {1, (TokenType[]){SYMBOL}};
 TokenTypeSet reswordSet = {1, (TokenType[]){RESWORD}};
 TokenTypeSet typeSet = {1, (TokenType[]){ID, RESWORD}};
@@ -25,37 +26,37 @@ TokenTypeSet operandSet = {5, (TokenType[]){INT, ID, STRING, SYMBOL, RESWORD}};
 // all return an EMPTY TOKEN upon success
 // top level grammer
 char *emtpyStart[] = {"\0"};
-ParserWrapper classDeclar();
-ParserWrapper memberDeclar();
-ParserWrapper classVarDeclar();
+void classDeclar();
+// void memberDeclar();
+void classVarDeclar();
 char *classVarDeclarStart[] = {"static", "field", "\0"};
-ParserWrapper type();
+void type();
 char *typeStart[] = {"int", "char", "boolean", "\0"};
-ParserWrapper subroutineDeclar();
+void subroutineDeclar();
 char *subroutineDeclarStart[] = {"constructor", "function", "method", "\0"};
-ParserWrapper paramList();
-ParserWrapper subroutineBody();
+void paramList();
+void subroutineBody();
 
 // statements
-ParserWrapper stmt();
+void stmt();
 char *stmtStart[] = {"var", "let", "if", "while", "do", "return", "\0"};
-ParserWrapper varStmt();
-ParserWrapper letStmt();
-ParserWrapper ifStmt();
-ParserWrapper whileStmt();
-ParserWrapper doStmt();
-ParserWrapper subroutineCall();
-ParserWrapper exprList();
-ParserWrapper returnStmt();
+void varStmt();
+void letStmt();
+void ifStmt();
+void whileStmt();
+void doStmt();
+void subroutineCall();
+void exprList();
+void returnStmt();
 // expressions
-ParserWrapper expr();
-ParserWrapper relationalExpr();
-ParserWrapper arithmeticExpr();
-ParserWrapper term();
-ParserWrapper factor();
+void expr();
+void relationalExpr();
+void arithmeticExpr();
+void term();
+void factor();
 // id, int, or strings below
 char *factorStart[] = {"-", "~", "(", "true", "false", "null", "this"};
-ParserWrapper operand();
+void operand();
 // id, int, or strings below
 char *operandStart[] = {"(", "true", "false", "null", "this"};
 
@@ -89,20 +90,20 @@ Boolean strcmpList(char *word, char **acceptCases) {
 }
 
 // We get to exit() !!!!!!!!!! Wooohoooo
-Boolean error(Token token, char *err) {
-
+void error(Token token, char *err, SyntaxErrors exitCode) {
   printf("< Token found: %s, on line: %d >< Expected: %s >\n", token.lx,
          token.ln, err);
-  exit(2);
+  exit(exitCode);
 }
 
 // consumption wrapper
-ParserWrapper eatTerminal(TokenTypeSet typeSet, char **acceptCases) {
+void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
+                 SyntaxErrors potentialErr, char *errMsg) {
   Token token = GetNextToken();
 
   // check lexer error
-  if (token.tp == ERR)
-    return (ParserWrapper){true, lexerErr, token};
+  if (ERR == token.tp)
+    error(token, "valid lexical token", lexerErr);
 
   // consume terminal token
   for (int i = 0; i < typeSet.length; i++) {
@@ -110,16 +111,14 @@ ParserWrapper eatTerminal(TokenTypeSet typeSet, char **acceptCases) {
     case SYMBOL:
     case RESWORD:
       if (typeSet.set[i] == token.tp && strcmpList(token.lx, acceptCases))
-        return (ParserWrapper){true, none, token};
-      break;
+        return;
 
     case ID:
     case INT:
     case STRING:
     case EOFile:
       if (typeSet.set[i] == token.tp)
-        return (ParserWrapper){true, none, token};
-      break;
+        return;
 
     // error already processed (unless error hunting in future, hmh)
     case ERR:
@@ -127,7 +126,7 @@ ParserWrapper eatTerminal(TokenTypeSet typeSet, char **acceptCases) {
     }
   }
 
-  return (ParserWrapper){true, potentialErr, token};
+  error(token, errMsg, potentialErr);
 }
 
 /**********************************************************************
@@ -139,117 +138,78 @@ ParserWrapper eatTerminal(TokenTypeSet typeSet, char **acceptCases) {
  **********************************************************************
  */
 
-ParserWrapper classDeclar() {
+void classDeclar() {
   ParserWrapper info;
   Token token;
-
   // class
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, classVarDeclarStart)) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){classExpected, token}};
-  }
+  eatTerminal(reswordSet, (char *[]){"class", "\0"}, classExpected,
+              "'class' resword");
 
   // ID
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (ID == token.tp) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){idExpected, token}};
-  }
+  eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
   // '{'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"{", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){openBraceExpected, token}};
-  }
+  eatTerminal(symbolSet, (char *[]){"{", "\0"}, openBraceExpected,
+              "'{' symbol");
 
   // { memberDeclar }
   while (true) {
 
     token = PeekNextToken();
     if (ERR == token.tp)
-      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+      error(token, "valid lexical token", lexerErr);
 
     // break case
     if (RESWORD != token.tp && !strcmpList(token.lx, classVarDeclarStart) &&
         !strcmpList(token.lx, subroutineDeclarStart))
       break;
 
-    // class var declar
+    // classVarDeclar()
     if (strcmpList(token.lx, classVarDeclarStart)) {
-      info = classVarDeclar();
-
-      if (info.info.er != none)
-        return info;
+      classVarDeclar();
+      continue;
     }
 
-    // subroutineDeclar
+    // subroutineDeclar()
     if (strcmpList(token.lx, subroutineDeclarStart)) {
-      info = subroutineDeclar();
-
-      if (info.info.er != none)
-        return info;
+      subroutineDeclar();
+      continue;
     }
   }
 
   // '}'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"}", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){closeBraceExpected, token}};
-  }
-
-  return (ParserWrapper){true, (ParserInfo){none, token}};
+  eatTerminal(symbolSet, (char *[]){"}", "\0"}, closeBraceExpected,
+              "'}' symbol");
 }
 
-ParserWrapper classVarDeclar() {
+void classVarDeclar() {
   ParserWrapper info;
   Token token;
 
   // 'static' | 'field'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (RESWORD == token.tp && strcmpList(token.lx, classVarDeclarStart)) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){classVarErr, token}};
-  }
+  eatTerminal(reswordSet, (char *[]){"static", "field", "\0"}, classVarErr,
+              "'static' or 'field' resword");
 
   // type()
   token = PeekNextToken();
   if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    error(token, "valid lexical token", lexerErr);
   if (ID == token.tp ||
       (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
     type();
     // should i check even though is already checked above??
   } else {
-    return (ParserWrapper){false, (ParserInfo){illegalType, token}};
+    error(token, "valid type token", illegalType);
   }
 
   // identifier
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (ID == token.tp) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){idExpected, token}};
-  }
+  eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
   // {, identifier}
   while (true) {
     token = PeekNextToken();
     if (ERR == token.tp)
-      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+      error(token, "valid lexical token", lexerErr);
 
     // break case
     if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){",", "\0"})) {
@@ -257,167 +217,102 @@ ParserWrapper classVarDeclar() {
     }
 
     token = GetNextToken(); // get ','
-    token = GetNextToken(); // get ID, hopefully
-    if (ERR == token.tp)
-      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-    if (ID == token.tp) {
-    } else {
-      return (ParserWrapper){false, (ParserInfo){idExpected, token}};
-    }
+    eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
     // (to stretch whitespace in formatter)
   }
 
   // ';'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){";", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){semicolonExpected, token}};
-  }
-
-  return (ParserWrapper){true, (ParserInfo){none, token}};
+  eatTerminal(symbolSet, (char *[]){";", "\0"}, semicolonExpected,
+              "';' symbol");
 }
 
-ParserWrapper type() {
-  Token token;
-
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (ID == token.tp ||
-      (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){illegalType, token}};
-  }
-
-  return (ParserWrapper){true, (ParserInfo){none, token}};
+void type() {
+  eatTerminal(typeSet, typeStart, illegalType, "valid type token");
 }
 
-ParserWrapper subroutineDeclar() {
+void subroutineDeclar() {
   Token token;
 
   // 'constructor' | 'function' | 'method'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (RESWORD == token.tp && strcmpList(token.lx, subroutineDeclarStart)) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){subroutineDeclarErr, token}};
-  }
+  eatTerminal(reswordSet, (char *[]){"constructor", "function", "method", "\0"},
+              subroutineDeclarErr,
+              "'constructor' or 'function' or 'method' resword");
 
   // type() | 'void'
   token = PeekNextToken();
   if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    error(token, "valid lexical token", lexerErr);
   if (ID == token.tp ||
       (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
     type();
   } else {
     // 'void'
-    token = GetNextToken(); // already checked if type == err, above
-    if (RESWORD == token.tp && strcmpList(token.lx, (char *[]){"void", "\0"})) {
-    } else {
-      return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
-    }
+    eatTerminal(reswordSet, (char *[]){"void", "\0"}, illegalType,
+                "expected type or 'void' token");
   }
 
   // identifier
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (ID == token.tp) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){idExpected, token}};
-  }
+  eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
   // '('
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"(", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){openParenExpected, token}};
-  }
+  eatTerminal(symbolSet, (char *[]){"(", "\0"}, openParenExpected,
+              "'(' symbol");
 
   // paramList()
   token = PeekNextToken();
   if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    error(token, "valid lexical token", lexerErr);
 
   // if paramList() is NOT empty
   if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){")", "\0"})) {
 
     if (ID == token.tp ||
         (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
-
-      ParserWrapper info = paramList();
-
-      if (!info.wasConsumed && info.info.er != none)
-        return info;
-
+      paramList();
     } else {
-      return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
+      error(token, "paramiter list", syntaxError);
     }
   }
 
   // ')'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){")", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){closeParenExpected, token}};
-  }
+  eatTerminal(symbolSet, (char *[]){")", "\0"}, closeParenExpected,
+              "')' symbol");
 
   // subroutineBody()
   token = PeekNextToken();
   if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    error(token, "valid lexical token", lexerErr);
   if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"{", "\0"})) {
-
-    ParserWrapper info = subroutineBody();
-
-    if (!info.wasConsumed && info.info.er != none)
-      return info;
-
+    subroutineBody();
   } else {
-    return (ParserWrapper){false, (ParserInfo){openBraceExpected, token}};
+    error(token, "'{' to start a subroutine body", syntaxError);
   }
-
-  return (ParserWrapper){true, (ParserInfo){none, token}};
 }
 
-ParserWrapper paramList() {
+void paramList() {
   Token token;
 
   // type()
   token = PeekNextToken();
   if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    error(token, "valid lexical token", lexerErr);
   if (ID == token.tp ||
       (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
     type();
     // should i check even though is already checked above??
   } else {
-    return (ParserWrapper){false, (ParserInfo){illegalType, token}};
+    error(token, "valid type token", illegalType);
   }
 
   // identifier
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (ID == token.tp) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){idExpected, token}};
-  }
+  eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
   // {',' type() identifier}
   while (true) {
     token = PeekNextToken();
     if (ERR == token.tp)
-      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+      error(token, "valid lexical token", lexerErr);
 
     // break case
     if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){",", "\0"})) {
@@ -425,138 +320,97 @@ ParserWrapper paramList() {
     }
 
     token = GetNextToken(); // get ','
+
     // type()
     token = PeekNextToken();
     if (ERR == token.tp)
-      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+      error(token, "valid lexical token", lexerErr);
     if (ID == token.tp ||
         (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
       type();
       // should i check even though is already checked above??
     } else {
-      return (ParserWrapper){false, (ParserInfo){illegalType, token}};
+      error(token, "valid type token", illegalType);
     }
 
     // identifier
-    token = GetNextToken();
-    if (ERR == token.tp)
-      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-    if (ID == token.tp) {
-    } else {
-      return (ParserWrapper){false, (ParserInfo){idExpected, token}};
-    }
-
-    // (to stretch whitespace in formatter)
+    eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
   }
-
-  return (ParserWrapper){true, (ParserInfo){none, token}};
 }
 
-ParserWrapper subroutineBody() {
+void subroutineBody() {
   Token token;
 
   // '{'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"{", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){openBraceExpected, token}};
-  }
+  eatTerminal(symbolSet, (char *[]){"{", "\0"}, openBraceExpected,
+              "'{' symbol");
 
-  // stmt()
-  token = PeekNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (RESWORD == token.tp && strcmpList(token.lx, stmtStart)) {
-    ParserWrapper info = stmt();
+  // { stmt() }
+  while (true) {
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      error(token, "valid lexical token", lexerErr);
 
-    // todo: should I check if hasRun???????
-    if (info.info.er != none)
-      return info;
-  } else {
-    return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
+    if (RESWORD != token.tp && !strcmpList(token.lx, stmtStart))
+      break;
+
+    stmt();
   }
 
   // '}'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"}", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){closeBraceExpected, token}};
-  }
-
-  return (ParserWrapper){true, (ParserInfo){none, token}};
+  eatTerminal(symbolSet, (char *[]){"}", "\0"}, closeBraceExpected,
+              "'}' symbol");
 }
 
-ParserWrapper stmt() {
+void stmt() {
   Token token;
-  ParserWrapper info;
 
   token = PeekNextToken();
 
   if (0 == strncmp(token.lx, "var", 128)) {
-    info = varStmt();
+    varStmt();
   } else if (0 == strncmp(token.lx, "let", 128)) {
-    info = letStmt();
+    letStmt();
   } else if (0 == strncmp(token.lx, "if", 128)) {
-    info = ifStmt();
+    ifStmt();
   } else if (0 == strncmp(token.lx, "while", 128)) {
-    info = whileStmt();
+    whileStmt();
   } else if (0 == strncmp(token.lx, "do", 128)) {
-    info = doStmt();
+    doStmt();
   } else if (0 == strncmp(token.lx, "return", 128)) {
-    info = returnStmt();
+    returnStmt();
   } else {
-    return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
+    error(token, "valid statement start token", syntaxError);
   }
-
-  // todo: should I check if hasRun???????
-  if (info.info.er != none)
-    return info;
-
-  return (ParserWrapper){true, (ParserInfo){none, token}};
 }
 
-ParserWrapper varStmt() {
+void varStmt() {
   Token token;
 
   // 'var'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (RESWORD == token.tp && strcmpList(token.lx, (char *[]){"var", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
-  }
+  eatTerminal(reswordSet, (char *[]){"var", "\0"}, syntaxError,
+              "'var' resword expected");
 
   // type()
   token = PeekNextToken();
   if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    error(token, "valid lexical token", lexerErr);
   if (ID == token.tp ||
       (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
     type();
     // should i check even though is already checked above??
   } else {
-    return (ParserWrapper){false, (ParserInfo){illegalType, token}};
+    error(token, "valid type token", illegalType);
   }
 
   // identifier
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (ID == token.tp) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){idExpected, token}};
-  }
+  eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
   // {, identifier}
   while (true) {
     token = PeekNextToken();
     if (ERR == token.tp)
-      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+      error(token, "valid lexical token", lexerErr);
 
     // break case
     if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){",", "\0"})) {
@@ -564,182 +418,98 @@ ParserWrapper varStmt() {
     }
 
     token = GetNextToken(); // get ','
-    token = GetNextToken(); // get ID, hopefully
-    if (ERR == token.tp)
-      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-    if (ID == token.tp) {
-    } else {
-      return (ParserWrapper){false, (ParserInfo){idExpected, token}};
-    }
+    eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
     // (to stretch whitespace in formatter)
   }
 
   // ';'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){";", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){semicolonExpected, token}};
-  }
-
-  return (ParserWrapper){true, (ParserInfo){none, token}};
+  eatTerminal(symbolSet, (char *[]){";", "\0"}, semicolonExpected,
+              "';' symbol");
 }
 
-ParserWrapper letStmt() {
+void letStmt() {
   Token token;
 
   // 'let'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (RESWORD == token.tp && strcmpList(token.lx, (char *[]){"let", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
-  }
+  eatTerminal(reswordSet, (char *[]){"let", "\0"}, syntaxError,
+              "'let' resword expected");
 
   // identifier
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (ID == token.tp) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){idExpected, token}};
-  }
+  eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
   // [ '[' expr() ']' ]
   token = PeekNextToken();
   if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    error(token, "valid lexical token", lexerErr);
 
   // if not equals THEN THERE is a'[' expr() ']'
   if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){"=", "\0"})) {
 
     // '['
-    token = GetNextToken();
-    if (ERR == token.tp)
-      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-    if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"[", "\0"})) {
-    } else { // todo: say there should be an openBracketError
-      return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
-    }
+    eatTerminal(symbolSet, (char *[]){"[", "\0"}, syntaxError, "'[' symbol");
 
     // expr()
     token = PeekNextToken();
     if (ERR == token.tp)
-      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+      error(token, "valid lexical token", lexerErr);
     if (RESWORD == token.tp && strcmpList(token.lx, factorStart)) {
-      // if statement has begun do it
-      ParserWrapper info = expr();
-
-      // todo: should I check if hasRun???????
-      if (info.info.er != none)
-        return info;
+      expr();
     } else {
-      return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
+      error(token, "a expression", syntaxError);
     }
 
     // ']'
-    token = GetNextToken();
-    if (ERR == token.tp)
-      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-    if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"]", "\0"})) {
-    } else {
-      return (ParserWrapper){false, (ParserInfo){closeBracketExpected, token}};
-    }
+    eatTerminal(symbolSet, (char *[]){"]", "\0"}, closeBracketExpected,
+                "']' symbol");
   }
 
   // '='
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){"=", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){equalExpected, token}};
-  }
+  eatTerminal(symbolSet, (char *[]){"=", "\0"}, equalExpected, "'=' symbol");
 
   // expr()
   token = PeekNextToken();
   if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    error(token, "valid lexical token", lexerErr);
   if (RESWORD == token.tp && strcmpList(token.lx, factorStart)) {
-    // if statement has begun do it
-    ParserWrapper info = expr();
-
-    // todo: should I check if hasRun???????
-    if (info.info.er != none)
-      return info;
+    expr();
   } else {
-    return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
+    error(token, "a expression", syntaxError);
   }
 
   // ';'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){";", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){semicolonExpected, token}};
-  }
-
-  return (ParserWrapper){true, (ParserInfo){none, token}};
+  eatTerminal(symbolSet, (char *[]){";", "\0"}, semicolonExpected,
+              "';' symbol");
 }
 
-ParserWrapper ifStmt() {
+void ifStmt() {
   Token token;
 
   // 'if'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (RESWORD == token.tp && strcmpList(token.lx, (char *[]){"if", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
-  }
+  eatTerminal(reswordSet, (char *[]){"if", "\0"}, syntaxError,
+              "'if' resword expected");
 
   // '('
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"(", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){openParenExpected, token}};
-  }
+  eatTerminal(symbolSet, (char *[]){"(", "\0"}, openParenExpected,
+              "'(' symbol");
 
   // expr()
   token = PeekNextToken();
   if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    error(token, "valid lexical token", lexerErr);
   if (RESWORD == token.tp && strcmpList(token.lx, factorStart)) {
-    // if statement has begun do it
-    ParserWrapper info = expr();
-
-    // todo: should I check if hasRun???????
-    if (info.info.er != none)
-      return info;
-
+    expr();
   } else {
-    return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
+    error(token, "a expression", syntaxError);
   }
 
   // ')'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){")", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){closeParenExpected, token}};
-  }
+  eatTerminal(symbolSet, (char *[]){")", "\0"}, closeParenExpected,
+              "')' symbol");
 
   // '{'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"{", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){openBraceExpected, token}};
-  }
+  eatTerminal(symbolSet, (char *[]){"{", "\0"}, openBraceExpected,
+              "'{' symbol");
 
   // { stmt() }
   while (true) {
@@ -747,194 +517,112 @@ ParserWrapper ifStmt() {
     token = PeekNextToken();
     // error case
     if (ERR == token.tp)
-      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+      error(token, "valid lexical token", lexerErr);
     // break case
     if (RESWORD != token.tp && !strcmpList(token.lx, stmtStart)) {
       break;
     }
     // if statement has begun do it
-    ParserWrapper info = stmt();
-
-    // todo: should I check if hasRun???????
-    if (info.info.er != none)
-      return info;
+    stmt();
   }
 
   // '}'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"}", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){closeBraceExpected, token}};
-  }
+  eatTerminal(symbolSet, (char *[]){"}", "\0"}, closeBraceExpected,
+              "'}' symbol");
 
   // [ else '{' {stmt()} '}' ]
   // 'else'
   token = PeekNextToken();
   if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    error(token, "valid lexical token", lexerErr);
   if (RESWORD == token.tp && strcmpList(token.lx, (char *[]){"else", "\0"})) {
     token = GetNextToken(); // get the 'else' token
     // '{'
-    token = GetNextToken();
-    if (ERR == token.tp)
-      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-    if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"{", "\0"})) {
-    } else {
-      return (ParserWrapper){false, (ParserInfo){openBraceExpected, token}};
-    }
+    eatTerminal(symbolSet, (char *[]){"{", "\0"}, openBraceExpected,
+                "'{' symbol");
 
     // { stmt() }
     while (true) {
-      // stmt()
       token = PeekNextToken();
-      // error case
       if (ERR == token.tp)
-        return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-      // break case
-      if (RESWORD != token.tp && !strcmpList(token.lx, stmtStart)) {
+        error(token, "valid lexical token", lexerErr);
+      if (RESWORD != token.tp && !strcmpList(token.lx, stmtStart))
         break;
-      }
-      // if statement has begun do it
-      ParserWrapper info = stmt();
 
-      // todo: should I check if hasRun???????
-      if (info.info.er != none)
-        return info;
+      stmt();
     }
 
     // '}'
-    token = GetNextToken();
-    if (ERR == token.tp)
-      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-    if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"}", "\0"})) {
-    } else {
-      return (ParserWrapper){false, (ParserInfo){closeBraceExpected, token}};
-    }
+    eatTerminal(symbolSet, (char *[]){"}", "\0"}, closeBraceExpected,
+                "'}' symbol");
   }
-
-  return (ParserWrapper){true, (ParserInfo){none, token}};
 }
 
-ParserWrapper whileStmt() {
+void whileStmt() {
   Token token;
 
   // while
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (RESWORD == token.tp && strcmpList(token.lx, (char *[]){"while", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
-  }
+  eatTerminal(reswordSet, (char *[]){"while", "\0"}, syntaxError,
+              "'while' resword expected");
 
   // '('
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"(", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){openParenExpected, token}};
-  }
+  eatTerminal(symbolSet, (char *[]){"(", "\0"}, openParenExpected,
+              "'(' symbol");
 
   // expr()
   token = PeekNextToken();
   if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    error(token, "valid lexical token", lexerErr);
   if (RESWORD == token.tp && strcmpList(token.lx, factorStart)) {
+    expr();
   } else {
-    return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
+    error(token, "a expression", syntaxError);
   }
 
   // ')'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){")", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){closeParenExpected, token}};
-  }
+  eatTerminal(symbolSet, (char *[]){")", "\0"}, closeParenExpected,
+              "')' symbol");
 
   // '{'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"{", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){openBraceExpected, token}};
-  }
+  eatTerminal(symbolSet, (char *[]){"{", "\0"}, openBraceExpected,
+              "'{' symbol");
 
   // { stmt() }
   while (true) {
-    // stmt()
     token = PeekNextToken();
-    // error case
     if (ERR == token.tp)
-      return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-    // break case
-    if (RESWORD != token.tp && !strcmpList(token.lx, stmtStart)) {
+      error(token, "valid lexical token", lexerErr);
+    if (RESWORD != token.tp && !strcmpList(token.lx, stmtStart))
       break;
-    }
-    // if statement has begun do it
-    ParserWrapper info = stmt();
 
-    // todo: should I check if hasRun???????
-    if (info.info.er != none)
-      return info;
+    stmt();
   }
 
   // '}'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"}", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){closeBraceExpected, token}};
-  }
-  // if statement has begun do it
-  ParserWrapper info = expr();
-
-  // todo: should I check if hasRun???????
-  if (info.info.er != none)
-    return info;
-
-  return (ParserWrapper){true, (ParserInfo){none, token}};
+  eatTerminal(symbolSet, (char *[]){"}", "\0"}, closeBraceExpected,
+              "'}' symbol");
 }
 
-ParserWrapper doStmt() {
+void doStmt() {
   Token token;
 
   // 'do'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (RESWORD == token.tp && strcmpList(token.lx, (char *[]){"do", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){syntaxError, token}};
-  }
+  eatTerminal(reswordSet, (char *[]){"do", "\0"}, syntaxError,
+              "'do' resword expected");
 
   // subroutineCall();
   token = PeekNextToken();
   if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
+    error(token, "valid lexical token", lexerErr);
   if (ID == token.tp) {
-    ParserWrapper info = subroutineCall();
-
-    // todo: should I check if hasRun???????
-    if (info.info.er != none)
-      return info;
+    subroutineCall();
+  } else {
+    error(token, "valid subroutineCall", syntaxError);
   }
 
   // ';'
-  token = GetNextToken();
-  if (ERR == token.tp)
-    return (ParserWrapper){false, (ParserInfo){lexerErr, token}};
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){";", "\0"})) {
-  } else {
-    return (ParserWrapper){false, (ParserInfo){semicolonExpected, token}};
-  }
-  return (ParserWrapper){true, (ParserInfo){none, token}};
+  eatTerminal(symbolSet, (char *[]){";", "\0"}, semicolonExpected,
+              "';' symbol");
 }
 
 /**********************************************************************
