@@ -290,6 +290,7 @@ Token GetNextToken() {
       return token;
     }
   }
+
   /* string constants */
   /* RETURNS 2 ERR tokens, 1 STRING token */
   if (next_char == '"') {
