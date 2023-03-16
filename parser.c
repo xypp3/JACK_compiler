@@ -8,11 +8,6 @@
 typedef enum { false, true } Boolean;
 
 typedef struct {
-  Boolean wasConsumed;
-  ParserInfo info;
-} ParserWrapper;
-
-typedef struct {
   unsigned int length;
   TokenType *set; // array
 } TokenTypeSet;
@@ -88,6 +83,12 @@ Boolean strcmpList(char *word, char **acceptCases) {
   return false;
 }
 
+Boolean isType() {
+  Token token = PeekNextToken();
+  return ID == token.tp ||
+         (RESWORD == token.tp && strcmpList(token.lx, typeStart));
+}
+
 Boolean isExpr() {
   Token token = PeekNextToken();
   switch (token.tp) {
@@ -140,14 +141,29 @@ void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
       if (typeSet.set[i] == token.tp)
         return;
 
-    case EOFile:
     // error already processed (unless error hunting in future, hmh)
+    case EOFile:
     case ERR:
       break;
     }
   }
 
   error(token, errMsg, potentialErr);
+}
+
+Boolean eatNonTerminal(void (*nonTerminal)(), int conditional) {
+  Token token = PeekNextToken();
+  // check lexer error
+  if (ERR == token.tp)
+    error(token, "valid lexical token", lexerErr);
+
+  // on conditional
+  if (conditional) {
+    nonTerminal();
+    return true;
+  }
+
+  return false;
 }
 
 /**********************************************************************
@@ -209,16 +225,8 @@ void classVarDeclar() {
               "'static' or 'field' resword");
 
   // type()
-  token = PeekNextToken();
-  if (ERR == token.tp)
-    error(token, "valid lexical token", lexerErr);
-  if (ID == token.tp ||
-      (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
-    type();
-    // should i check even though is already checked above??
-  } else {
+  if (!eatNonTerminal(&type, isType()))
     error(token, "valid type token", illegalType);
-  }
 
   // identifier
   eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
@@ -264,8 +272,7 @@ void subroutineDeclar() {
   token = PeekNextToken();
   if (ERR == token.tp)
     error(token, "valid lexical token", lexerErr);
-  if (ID == token.tp ||
-      (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
+  if (isType()) {
     type();
   } else {
     // 'void'
@@ -288,8 +295,7 @@ void subroutineDeclar() {
   // if paramList() is NOT empty
   if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){")", "\0"})) {
 
-    if (ID == token.tp ||
-        (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
+    if (isType()) {
       paramList();
     } else {
       error(token, "paramiter list", syntaxError);
@@ -315,16 +321,8 @@ void paramList() {
   Token token;
 
   // type()
-  token = PeekNextToken();
-  if (ERR == token.tp)
-    error(token, "valid lexical token", lexerErr);
-  if (ID == token.tp ||
-      (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
-    type();
-    // should i check even though is already checked above??
-  } else {
+  if (!eatNonTerminal(&type, isType()))
     error(token, "valid type token", illegalType);
-  }
 
   // identifier
   eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
@@ -344,16 +342,8 @@ void paramList() {
     eatTerminal(symbolSet, (char *[]){",", "\0"}, syntaxError, "',' symbol");
 
     // type()
-    token = PeekNextToken();
-    if (ERR == token.tp)
-      error(token, "valid lexical token", lexerErr);
-    if (ID == token.tp ||
-        (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
-      type();
-      // should i check even though is already checked above??
-    } else {
+    if (!eatNonTerminal(&type, isType()))
       error(token, "valid type token", illegalType);
-    }
 
     // identifier
     eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
@@ -414,16 +404,8 @@ void varStmt() {
               "'var' resword expected");
 
   // type()
-  token = PeekNextToken();
-  if (ERR == token.tp)
-    error(token, "valid lexical token", lexerErr);
-  if (ID == token.tp ||
-      (RESWORD == token.tp && strcmpList(token.lx, typeStart))) {
-    type();
-    // should i check even though is already checked above??
-  } else {
+  if (!eatNonTerminal(&type, isType()))
     error(token, "valid type token", illegalType);
-  }
 
   // identifier
   eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
@@ -475,14 +457,8 @@ void letStmt() {
     eatTerminal(symbolSet, (char *[]){"[", "\0"}, syntaxError, "'[' symbol");
 
     // expr()
-    token = PeekNextToken();
-    if (ERR == token.tp)
-      error(token, "valid lexical token", lexerErr);
-    if (isExpr()) {
-      expr();
-    } else {
+    if (!eatNonTerminal(&expr, isExpr()))
       error(token, "a expression", syntaxError);
-    }
 
     // ']'
     eatTerminal(symbolSet, (char *[]){"]", "\0"}, closeBracketExpected,
@@ -493,14 +469,8 @@ void letStmt() {
   eatTerminal(symbolSet, (char *[]){"=", "\0"}, equalExpected, "'=' symbol");
 
   // expr()
-  token = PeekNextToken();
-  if (ERR == token.tp)
-    error(token, "valid lexical token", lexerErr);
-  if (isExpr()) {
-    expr();
-  } else {
+  if (!eatNonTerminal(&expr, isExpr()))
     error(token, "a expression", syntaxError);
-  }
 
   // ';'
   eatTerminal(symbolSet, (char *[]){";", "\0"}, semicolonExpected,
@@ -508,8 +478,6 @@ void letStmt() {
 }
 
 void ifStmt() {
-  Token token;
-
   // 'if'
   eatTerminal(reswordSet, (char *[]){"if", "\0"}, syntaxError,
               "'if' resword expected");
@@ -519,14 +487,9 @@ void ifStmt() {
               "'(' symbol");
 
   // expr()
-  token = PeekNextToken();
-  if (ERR == token.tp)
-    error(token, "valid lexical token", lexerErr);
-  if (isExpr()) {
-    expr();
-  } else {
+  Token token = PeekNextToken(); // to give it a token to return
+  if (!eatNonTerminal(&expr, isExpr()))
     error(token, "a expression", syntaxError);
-  }
 
   // ')'
   eatTerminal(symbolSet, (char *[]){")", "\0"}, closeParenExpected,
@@ -547,7 +510,6 @@ void ifStmt() {
     if (!strcmpList(token.lx, stmtStart)) {
       break;
     }
-    // if statement has begun do it
     stmt();
   }
 
@@ -597,14 +559,8 @@ void whileStmt() {
               "'(' symbol");
 
   // expr()
-  token = PeekNextToken();
-  if (ERR == token.tp)
-    error(token, "valid lexical token", lexerErr);
-  if (isExpr()) {
-    expr();
-  } else {
+  if (!eatNonTerminal(&expr, isExpr()))
     error(token, "a expression", syntaxError);
-  }
 
   // ')'
   eatTerminal(symbolSet, (char *[]){")", "\0"}, closeParenExpected,
@@ -639,13 +595,8 @@ void doStmt() {
 
   // subroutineCall();
   token = PeekNextToken();
-  if (ERR == token.tp)
-    error(token, "valid lexical token", lexerErr);
-  if (ID == token.tp) {
-    subroutineCall();
-  } else {
+  if (!eatNonTerminal(&subroutineCall, ID == token.tp))
     error(token, "valid subroutineCall", syntaxError);
-  }
 
   // ';'
   eatTerminal(symbolSet, (char *[]){";", "\0"}, semicolonExpected,
@@ -693,14 +644,8 @@ void exprList() {
   Token token;
 
   // expr() or empty
-  token = PeekNextToken();
-  if (ERR == token.tp)
-    error(token, "valid lexical token", lexerErr);
-  if (isExpr()) {
-    expr();
-  } else {
-    return; // empty expressionList
-  }
+  if (!eatNonTerminal(&expr, isExpr()))
+    return;
 
   // { ',' expr() }
   while (true) {
@@ -717,13 +662,8 @@ void exprList() {
     eatTerminal(symbolSet, (char *[]){",", "\0"}, syntaxError, "',' symbol");
 
     // expr()
-    token = PeekNextToken();
-    if (ERR == token.tp)
-      error(token, "valid lexical token", lexerErr);
-    if (isExpr()) {
-      expr();
-    } else
-      error(token, "a expression token", syntaxError);
+    if (!eatNonTerminal(&expr, isExpr()))
+      return;
 
     // (to stretch whitespace in formatter)
   }
@@ -752,11 +692,7 @@ void expr() {
 
   // relationalExpr()
   token = PeekNextToken();
-  if (ERR == token.tp)
-    error(token, "valid lexical token", lexerErr);
-  if (isExpr()) {
-    relationalExpr();
-  } else
+  if (!eatNonTerminal(&relationalExpr, isExpr()))
     error(token, "a relational expression token", syntaxError);
 
   // { ( '&' | '|' ) relationalExpr() }
@@ -776,11 +712,7 @@ void expr() {
 
     // relationalExpr()
     token = PeekNextToken();
-    if (ERR == token.tp)
-      error(token, "valid lexical token", lexerErr);
-    if (isExpr()) {
-      relationalExpr();
-    } else
+    if (!eatNonTerminal(&relationalExpr, isExpr()))
       error(token, "a relational expression token", syntaxError);
 
     // (to stretch whitespace in formatter)
@@ -792,11 +724,7 @@ void relationalExpr() {
 
   // arithmeticExpr()
   token = PeekNextToken();
-  if (ERR == token.tp)
-    error(token, "valid lexical token", lexerErr);
-  if (isExpr()) {
-    arithmeticExpr();
-  } else
+  if (!eatNonTerminal(&arithmeticExpr, isExpr()))
     error(token, "a arithmetic expression token", syntaxError);
 
   // { ( '=' | '>' | '<' ) arithmeticExpr() }
@@ -816,11 +744,7 @@ void relationalExpr() {
 
     // arithmeticExpr()
     token = PeekNextToken();
-    if (ERR == token.tp)
-      error(token, "valid lexical token", lexerErr);
-    if (isExpr()) {
-      arithmeticExpr();
-    } else
+    if (!eatNonTerminal(&arithmeticExpr, isExpr()))
       error(token, "a arithmetic expression token", syntaxError);
 
     // (to stretch whitespace in formatter)
@@ -832,11 +756,7 @@ void arithmeticExpr() {
 
   // term()
   token = PeekNextToken();
-  if (ERR == token.tp)
-    error(token, "valid lexical token", lexerErr);
-  if (isExpr()) {
-    term();
-  } else
+  if (!eatNonTerminal(&term, isExpr()))
     error(token, "a term expression token", syntaxError);
 
   // { ( '+' | '-' ) term() }
@@ -856,11 +776,7 @@ void arithmeticExpr() {
 
     // term()
     token = PeekNextToken();
-    if (ERR == token.tp)
-      error(token, "valid lexical token", lexerErr);
-    if (isExpr()) {
-      term();
-    } else
+    if (!eatNonTerminal(&term, isExpr()))
       error(token, "a term expression token", syntaxError);
 
     // (to stretch whitespace in formatter)
@@ -872,11 +788,7 @@ void term() {
 
   // factor()
   token = PeekNextToken();
-  if (ERR == token.tp)
-    error(token, "valid lexical token", lexerErr);
-  if (isExpr()) {
-    factor();
-  } else
+  if (!eatNonTerminal(&factor, isExpr()))
     error(token, "a factor expression token", syntaxError);
 
   // { ( '*' | '/' ) factor() }
@@ -896,11 +808,7 @@ void term() {
 
     // factor()
     token = PeekNextToken();
-    if (ERR == token.tp)
-      error(token, "valid lexical token", lexerErr);
-    if (isExpr()) {
-      factor();
-    } else
+    if (!eatNonTerminal(&factor, isExpr()))
       error(token, "a factor expression token", syntaxError);
 
     // (to stretch whitespace in formatter)
