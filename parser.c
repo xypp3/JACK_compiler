@@ -678,11 +678,10 @@ void subroutineCall() {
   token = PeekNextToken();
   if (ERR == token.tp)
     error(token, "valid lexical token", lexerErr);
-  // starts with expr() or is empty
-  if (isExpr()) {
+
+  // don't like that that's how I test for an empty exprList() but alas
+  if (!strcmpList(token.lx, (char *[]){")", "\0"})) {
     exprList();
-  } else {
-    error(token, "a expression", syntaxError);
   }
 
   // ')'
@@ -1006,10 +1005,10 @@ void operand() {
       token = PeekNextToken();
       if (ERR == token.tp)
         error(token, "valid lexical token", lexerErr);
-      if (isExpr()) {
+
+      // don't like that that's how I test for an empty exprList() but alas
+      if (!strcmpList(token.lx, (char *[]){")", "\0"})) {
         exprList();
-      } else {
-        error(token, "a expression", syntaxError);
       }
 
       // ')'
