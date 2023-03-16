@@ -225,6 +225,7 @@ void classVarDeclar() {
               "'static' or 'field' resword");
 
   // type()
+  token = PeekNextToken();
   if (!eatNonTerminal(&type, isType()))
     error(token, "valid type token", illegalType);
 
@@ -321,6 +322,7 @@ void paramList() {
   Token token;
 
   // type()
+  token = PeekNextToken(); // for error function
   if (!eatNonTerminal(&type, isType()))
     error(token, "valid type token", illegalType);
 
@@ -342,6 +344,7 @@ void paramList() {
     eatTerminal(symbolSet, (char *[]){",", "\0"}, syntaxError, "',' symbol");
 
     // type()
+    token = PeekNextToken(); // for error function
     if (!eatNonTerminal(&type, isType()))
       error(token, "valid type token", illegalType);
 
@@ -404,6 +407,7 @@ void varStmt() {
               "'var' resword expected");
 
   // type()
+  token = PeekNextToken(); // for error function
   if (!eatNonTerminal(&type, isType()))
     error(token, "valid type token", illegalType);
 
@@ -457,6 +461,7 @@ void letStmt() {
     eatTerminal(symbolSet, (char *[]){"[", "\0"}, syntaxError, "'[' symbol");
 
     // expr()
+    token = PeekNextToken(); // for error function
     if (!eatNonTerminal(&expr, isExpr()))
       error(token, "a expression", syntaxError);
 
@@ -469,6 +474,7 @@ void letStmt() {
   eatTerminal(symbolSet, (char *[]){"=", "\0"}, equalExpected, "'=' symbol");
 
   // expr()
+  token = PeekNextToken(); // for error function
   if (!eatNonTerminal(&expr, isExpr()))
     error(token, "a expression", syntaxError);
 
@@ -559,6 +565,7 @@ void whileStmt() {
               "'(' symbol");
 
   // expr()
+  token = PeekNextToken(); // for error function
   if (!eatNonTerminal(&expr, isExpr()))
     error(token, "a expression", syntaxError);
 
@@ -662,8 +669,9 @@ void exprList() {
     eatTerminal(symbolSet, (char *[]){",", "\0"}, syntaxError, "',' symbol");
 
     // expr()
+    token = PeekNextToken(); // for error function
     if (!eatNonTerminal(&expr, isExpr()))
-      return;
+      error(token, "a expression", syntaxError);
 
     // (to stretch whitespace in formatter)
   }
