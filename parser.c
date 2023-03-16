@@ -21,7 +21,7 @@ typedef struct {
 TokenTypeSet idSet = {1, (TokenType[]){ID}};
 TokenTypeSet symbolSet = {1, (TokenType[]){SYMBOL}};
 TokenTypeSet reswordSet = {1, (TokenType[]){RESWORD}};
-TokenTypeSet typeSet = {1, (TokenType[]){ID, RESWORD}};
+TokenTypeSet typeSet = {2, (TokenType[]){ID, RESWORD}};
 TokenTypeSet operandSet = {5, (TokenType[]){INT, ID, STRING, SYMBOL, RESWORD}};
 // all return an EMPTY TOKEN upon success
 // top level grammer
@@ -54,11 +54,11 @@ void relationalExpr();
 void arithmeticExpr();
 void term();
 void factor();
-// id, int, or strings below
-char *factorStart[] = {"-", "~", "(", "true", "false", "null", "this"};
+// id, int, string literal or reswords below
+char *factorStart[] = {"-", "~", "(", "true", "false", "null", "this", "\0"};
 void operand();
-// id, int, or strings below
-char *operandStart[] = {"(", "true", "false", "null", "this"};
+// id, int, string literal or reswords below
+char *operandStart[] = {"(", "true", "false", "null", "this", "\0"};
 
 // function stubs above
 
@@ -72,14 +72,13 @@ char *operandStart[] = {"(", "true", "false", "null", "this"};
  */
 
 Boolean strcmpList(char *word, char **acceptCases) {
-  int pos = 0;
-
   // if empty acceptCases return true (for accepting ID tokens)
   if (0 == strcmp(acceptCases[0], "\0"))
     return true;
 
+  int pos = 0;
   // else test acceptCases
-  while (strcmp(acceptCases[pos], "\0") != 0) {
+  while (strncmp(acceptCases[pos], "\0", 128) != 0) {
     if (0 == strncmp(word, acceptCases[pos], 128))
       return true;
 
@@ -89,10 +88,31 @@ Boolean strcmpList(char *word, char **acceptCases) {
   return false;
 }
 
+Boolean isExpr() {
+  Token token = PeekNextToken();
+  switch (token.tp) {
+  case ID:
+  case INT:
+  case STRING:
+    return true;
+  case RESWORD:
+  case SYMBOL:
+    return strcmpList(token.lx, factorStart);
+  default:
+    return false;
+  }
+}
+
 // We get to exit() !!!!!!!!!! Wooohoooo
 void error(Token token, char *err, SyntaxErrors exitCode) {
+  // communicate error
   printf("< Token found: %s, on line: %d >< Expected: %s >\n", token.lx,
          token.ln, err);
+
+  // clean up memory
+  StopParser();
+
+  // exit
   exit(exitCode);
 }
 
@@ -100,6 +120,7 @@ void error(Token token, char *err, SyntaxErrors exitCode) {
 void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
                  SyntaxErrors potentialErr, char *errMsg) {
   Token token = GetNextToken();
+  printf("Token: %s, on line %d, with msg: %s\n", token.lx, token.ln, errMsg);
 
   // check lexer error
   if (ERR == token.tp)
@@ -116,10 +137,10 @@ void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
     case ID:
     case INT:
     case STRING:
-    case EOFile:
       if (typeSet.set[i] == token.tp)
         return;
 
+    case EOFile:
     // error already processed (unless error hunting in future, hmh)
     case ERR:
       break;
@@ -139,8 +160,6 @@ void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
  */
 
 void classDeclar() {
-  ParserWrapper info;
-  Token token;
   // class
   eatTerminal(reswordSet, (char *[]){"class", "\0"}, classExpected,
               "'class' resword");
@@ -152,15 +171,15 @@ void classDeclar() {
   eatTerminal(symbolSet, (char *[]){"{", "\0"}, openBraceExpected,
               "'{' symbol");
 
-  // { memberDeclar }
+  // { classVarDeclar() | subroutineDeclar() }
   while (true) {
 
-    token = PeekNextToken();
+    Token token = PeekNextToken();
     if (ERR == token.tp)
       error(token, "valid lexical token", lexerErr);
 
     // break case
-    if (RESWORD != token.tp && !strcmpList(token.lx, classVarDeclarStart) &&
+    if (!strcmpList(token.lx, classVarDeclarStart) &&
         !strcmpList(token.lx, subroutineDeclarStart))
       break;
 
@@ -183,7 +202,6 @@ void classDeclar() {
 }
 
 void classVarDeclar() {
-  ParserWrapper info;
   Token token;
 
   // 'static' | 'field'
@@ -212,11 +230,14 @@ void classVarDeclar() {
       error(token, "valid lexical token", lexerErr);
 
     // break case
-    if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){",", "\0"})) {
+    if (!strcmpList(token.lx, (char *[]){",", "\0"})) {
       break;
     }
 
-    token = GetNextToken(); // get ','
+    // ','
+    eatTerminal(symbolSet, (char *[]){",", "\0"}, syntaxError, "',' symbol");
+
+    // identifier
     eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
     // (to stretch whitespace in formatter)
@@ -315,11 +336,12 @@ void paramList() {
       error(token, "valid lexical token", lexerErr);
 
     // break case
-    if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){",", "\0"})) {
+    if (!strcmpList(token.lx, (char *[]){",", "\0"})) {
       break;
     }
 
-    token = GetNextToken(); // get ','
+    // ','
+    eatTerminal(symbolSet, (char *[]){",", "\0"}, syntaxError, "',' symbol");
 
     // type()
     token = PeekNextToken();
@@ -351,7 +373,7 @@ void subroutineBody() {
     if (ERR == token.tp)
       error(token, "valid lexical token", lexerErr);
 
-    if (RESWORD != token.tp && !strcmpList(token.lx, stmtStart))
+    if (!strcmpList(token.lx, stmtStart))
       break;
 
     stmt();
@@ -413,11 +435,14 @@ void varStmt() {
       error(token, "valid lexical token", lexerErr);
 
     // break case
-    if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){",", "\0"})) {
+    if (!strcmpList(token.lx, (char *[]){",", "\0"})) {
       break;
     }
 
-    token = GetNextToken(); // get ','
+    // ','
+    eatTerminal(symbolSet, (char *[]){",", "\0"}, syntaxError, "',' symbol");
+
+    // identifier
     eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
     // (to stretch whitespace in formatter)
@@ -444,7 +469,7 @@ void letStmt() {
     error(token, "valid lexical token", lexerErr);
 
   // if not equals THEN THERE is a'[' expr() ']'
-  if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){"=", "\0"})) {
+  if (!strcmpList(token.lx, (char *[]){"=", "\0"})) {
 
     // '['
     eatTerminal(symbolSet, (char *[]){"[", "\0"}, syntaxError, "'[' symbol");
@@ -453,7 +478,7 @@ void letStmt() {
     token = PeekNextToken();
     if (ERR == token.tp)
       error(token, "valid lexical token", lexerErr);
-    if (RESWORD == token.tp && strcmpList(token.lx, factorStart)) {
+    if (isExpr()) {
       expr();
     } else {
       error(token, "a expression", syntaxError);
@@ -471,7 +496,7 @@ void letStmt() {
   token = PeekNextToken();
   if (ERR == token.tp)
     error(token, "valid lexical token", lexerErr);
-  if (RESWORD == token.tp && strcmpList(token.lx, factorStart)) {
+  if (isExpr()) {
     expr();
   } else {
     error(token, "a expression", syntaxError);
@@ -497,7 +522,7 @@ void ifStmt() {
   token = PeekNextToken();
   if (ERR == token.tp)
     error(token, "valid lexical token", lexerErr);
-  if (RESWORD == token.tp && strcmpList(token.lx, factorStart)) {
+  if (isExpr()) {
     expr();
   } else {
     error(token, "a expression", syntaxError);
@@ -519,7 +544,7 @@ void ifStmt() {
     if (ERR == token.tp)
       error(token, "valid lexical token", lexerErr);
     // break case
-    if (RESWORD != token.tp && !strcmpList(token.lx, stmtStart)) {
+    if (!strcmpList(token.lx, stmtStart)) {
       break;
     }
     // if statement has begun do it
@@ -536,7 +561,9 @@ void ifStmt() {
   if (ERR == token.tp)
     error(token, "valid lexical token", lexerErr);
   if (RESWORD == token.tp && strcmpList(token.lx, (char *[]){"else", "\0"})) {
-    token = GetNextToken(); // get the 'else' token
+    // 'else'
+    eatTerminal(reswordSet, (char *[]){"else", "\0"}, syntaxError,
+                "'else' resword expected");
     // '{'
     eatTerminal(symbolSet, (char *[]){"{", "\0"}, openBraceExpected,
                 "'{' symbol");
@@ -546,7 +573,7 @@ void ifStmt() {
       token = PeekNextToken();
       if (ERR == token.tp)
         error(token, "valid lexical token", lexerErr);
-      if (RESWORD != token.tp && !strcmpList(token.lx, stmtStart))
+      if (!strcmpList(token.lx, stmtStart))
         break;
 
       stmt();
@@ -573,7 +600,7 @@ void whileStmt() {
   token = PeekNextToken();
   if (ERR == token.tp)
     error(token, "valid lexical token", lexerErr);
-  if (RESWORD == token.tp && strcmpList(token.lx, factorStart)) {
+  if (isExpr()) {
     expr();
   } else {
     error(token, "a expression", syntaxError);
@@ -592,7 +619,7 @@ void whileStmt() {
     token = PeekNextToken();
     if (ERR == token.tp)
       error(token, "valid lexical token", lexerErr);
-    if (RESWORD != token.tp && !strcmpList(token.lx, stmtStart))
+    if (!strcmpList(token.lx, stmtStart))
       break;
 
     stmt();
@@ -625,6 +652,404 @@ void doStmt() {
               "';' symbol");
 }
 
+void subroutineCall() {
+  Token token;
+
+  // identifier
+  eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+
+  // [ '.'identifier ]
+  token = PeekNextToken();
+  if (ERR == token.tp)
+    error(token, "valid lexical token", lexerErr);
+  if (strcmpList(token.lx, (char *[]){".", "\0"})) {
+    // '.'
+    eatTerminal(symbolSet, (char *[]){".", "\0"}, syntaxError, "'.' symbol");
+
+    // identifier
+    eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+  }
+
+  // '('
+  eatTerminal(symbolSet, (char *[]){"(", "\0"}, openParenExpected,
+              "'(' symbol");
+
+  // expressionList()
+  token = PeekNextToken();
+  if (ERR == token.tp)
+    error(token, "valid lexical token", lexerErr);
+  // starts with expr() or is empty
+  if (isExpr()) {
+    exprList();
+  } else {
+    error(token, "a expression", syntaxError);
+  }
+
+  // ')'
+  eatTerminal(symbolSet, (char *[]){")", "\0"}, closeParenExpected,
+              "')' symbol");
+}
+
+void exprList() {
+  Token token;
+
+  // expr() or empty
+  token = PeekNextToken();
+  if (ERR == token.tp)
+    error(token, "valid lexical token", lexerErr);
+  if (isExpr()) {
+    expr();
+  } else {
+    return; // empty expressionList
+  }
+
+  // { ',' expr() }
+  while (true) {
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      error(token, "valid lexical token", lexerErr);
+
+    // break case
+    if (!strcmpList(token.lx, (char *[]){",", "\0"})) {
+      break;
+    }
+
+    // ','
+    eatTerminal(symbolSet, (char *[]){",", "\0"}, syntaxError, "',' symbol");
+
+    // expr()
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      error(token, "valid lexical token", lexerErr);
+    if (isExpr()) {
+      expr();
+    } else
+      error(token, "a expression token", syntaxError);
+
+    // (to stretch whitespace in formatter)
+  }
+}
+
+void returnStmt() {
+  // 'return'
+  eatTerminal(reswordSet, (char *[]){"return", "\0"}, syntaxError,
+              "'return' resword expected");
+
+  // [ expr() ]
+  Token token = PeekNextToken();
+  if (ERR == token.tp)
+    error(token, "valid lexical token", lexerErr);
+  if (isExpr()) {
+    expr();
+  }
+
+  //';'
+  eatTerminal(symbolSet, (char *[]){";", "\0"}, semicolonExpected,
+              "';' symbol");
+}
+
+void expr() {
+  Token token;
+
+  // relationalExpr()
+  token = PeekNextToken();
+  if (ERR == token.tp)
+    error(token, "valid lexical token", lexerErr);
+  if (isExpr()) {
+    relationalExpr();
+  } else
+    error(token, "a relational expression token", syntaxError);
+
+  // { ( '&' | '|' ) relationalExpr() }
+  while (true) {
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      error(token, "valid lexical token", lexerErr);
+
+    // break case
+    if (!strcmpList(token.lx, (char *[]){"&", "|", "\0"})) {
+      break;
+    }
+
+    // get '&' or '|'
+    eatTerminal(symbolSet, (char *[]){"&", "|", "\0"}, syntaxError,
+                "'&' or '|' symbol");
+
+    // relationalExpr()
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      error(token, "valid lexical token", lexerErr);
+    if (isExpr()) {
+      relationalExpr();
+    } else
+      error(token, "a relational expression token", syntaxError);
+
+    // (to stretch whitespace in formatter)
+  }
+}
+
+void relationalExpr() {
+  Token token;
+
+  // arithmeticExpr()
+  token = PeekNextToken();
+  if (ERR == token.tp)
+    error(token, "valid lexical token", lexerErr);
+  if (isExpr()) {
+    arithmeticExpr();
+  } else
+    error(token, "a arithmetic expression token", syntaxError);
+
+  // { ( '=' | '>' | '<' ) arithmeticExpr() }
+  while (true) {
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      error(token, "valid lexical token", lexerErr);
+
+    // break case
+    if (!strcmpList(token.lx, (char *[]){"=", ">", "<", "\0"})) {
+      break;
+    }
+
+    // get '=' or '>' or '<'
+    eatTerminal(symbolSet, (char *[]){"=", ">", "<", "\0"}, syntaxError,
+                "'=' or '>' or '<' symbol");
+
+    // arithmeticExpr()
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      error(token, "valid lexical token", lexerErr);
+    if (isExpr()) {
+      arithmeticExpr();
+    } else
+      error(token, "a arithmetic expression token", syntaxError);
+
+    // (to stretch whitespace in formatter)
+  }
+}
+
+void arithmeticExpr() {
+  Token token;
+
+  // term()
+  token = PeekNextToken();
+  if (ERR == token.tp)
+    error(token, "valid lexical token", lexerErr);
+  if (isExpr()) {
+    term();
+  } else
+    error(token, "a term expression token", syntaxError);
+
+  // { ( '+' | '-' ) term() }
+  while (true) {
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      error(token, "valid lexical token", lexerErr);
+
+    // break case
+    if (!strcmpList(token.lx, (char *[]){"+", "-", "\0"})) {
+      break;
+    }
+
+    // get '+' or '-'
+    eatTerminal(symbolSet, (char *[]){"+", "-", "\0"}, syntaxError,
+                "'+' or '-' symbol");
+
+    // term()
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      error(token, "valid lexical token", lexerErr);
+    if (isExpr()) {
+      term();
+    } else
+      error(token, "a term expression token", syntaxError);
+
+    // (to stretch whitespace in formatter)
+  }
+}
+
+void term() {
+  Token token;
+
+  // factor()
+  token = PeekNextToken();
+  if (ERR == token.tp)
+    error(token, "valid lexical token", lexerErr);
+  if (isExpr()) {
+    factor();
+  } else
+    error(token, "a factor expression token", syntaxError);
+
+  // { ( '*' | '/' ) factor() }
+  while (true) {
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      error(token, "valid lexical token", lexerErr);
+
+    // break case
+    if (!strcmpList(token.lx, (char *[]){"*", "/", "\0"})) {
+      break;
+    }
+
+    // get '*' or '/'
+    eatTerminal(symbolSet, (char *[]){"*", "/", "\0"}, syntaxError,
+                "'*' or '/' symbol");
+
+    // factor()
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      error(token, "valid lexical token", lexerErr);
+    if (isExpr()) {
+      factor();
+    } else
+      error(token, "a factor expression token", syntaxError);
+
+    // (to stretch whitespace in formatter)
+  }
+}
+
+void factor() {
+  Token token;
+
+  token = PeekNextToken();
+  if (ERR == token.tp)
+    error(token, "valid lexical token", lexerErr);
+  // check if '-' or '~'
+  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"-", "~", "\0"})) {
+
+    // consume '-' or '~'
+    eatTerminal(symbolSet, (char *[]){"-", "~", "\0"}, syntaxError,
+                "'-' or '~' symbol");
+
+    token = PeekNextToken(); // get operand()
+    if (ERR == token.tp)
+      error(token, "valid lexical token", lexerErr);
+    if ((INT == token.tp || ID == token.tp || STRING == token.tp) ||
+        (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"(", "\0"})) ||
+        (RESWORD == token.tp && strcmpList(token.lx, operandStart))) {
+      operand();
+    }
+
+  }
+  // starts with empty string i.e. starts with operand()
+  else if ((INT == token.tp || ID == token.tp || STRING == token.tp) ||
+           (SYMBOL == token.tp &&
+            strcmpList(token.lx, (char *[]){"(", "\0"})) ||
+           (RESWORD == token.tp && strcmpList(token.lx, operandStart))) {
+    operand();
+  }
+}
+
+void operand() {
+  Token token;
+
+  token = PeekNextToken();
+  if (ERR == token.tp)
+    error(token, "valid lexical token", lexerErr);
+
+  if (INT == token.tp || STRING == token.tp) {
+    eatTerminal((TokenTypeSet){2, (TokenType[]){INT, STRING}}, (char *[]){"\0"},
+                syntaxError, "int or string literals");
+    return;
+  }
+
+  // identifier [ '.'identifier ] [ '['expr()']' | '('exprList')']
+  if (ID == token.tp) {
+    // identifier
+    eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+
+    // [ '.'identifier ]
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      error(token, "valid lexical token", lexerErr);
+    if (strcmpList(token.lx, (char *[]){".", "\0"})) {
+      // '.'
+      eatTerminal(symbolSet, (char *[]){".", "\0"}, syntaxError, "'.' symbol");
+
+      // identifier
+      eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+    }
+
+    // [ '['expr()']' | '('exprList')' ]
+    token = PeekNextToken();
+
+    // '['expr()']'
+    if (strcmpList(token.lx, (char *[]){"[", "\0"})) {
+      // '['
+      eatTerminal(symbolSet, (char *[]){"[", "\0"}, syntaxError,
+                  "'[' symbol at end of expression");
+
+      // expr()
+      token = PeekNextToken();
+      if (ERR == token.tp)
+        error(token, "valid lexical token", lexerErr);
+      if (isExpr()) {
+        expr();
+      } else {
+        error(token, "a expression", syntaxError);
+      }
+
+      // ']'
+      eatTerminal(symbolSet, (char *[]){"]", "\0"}, closeBracketExpected,
+                  "']' symbol at end of expression");
+
+      return;
+    }
+
+    // '(' exprList() ')'
+    if (strcmpList(token.lx, (char *[]){"(", "\0"})) {
+      // '('
+      eatTerminal(symbolSet, (char *[]){"(", "\0"}, syntaxError,
+                  "'(' symbol at end of expression");
+
+      // exprList()
+      token = PeekNextToken();
+      if (ERR == token.tp)
+        error(token, "valid lexical token", lexerErr);
+      if (isExpr()) {
+        exprList();
+      } else {
+        error(token, "a expression", syntaxError);
+      }
+
+      // ')'
+      eatTerminal(symbolSet, (char *[]){")", "\0"}, closeBracketExpected,
+                  "')' symbol at end of expression ");
+
+      return;
+    }
+
+    return;
+  }
+
+  // '('expr()')'
+  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"(", "\0"})) {
+    // '('
+    eatTerminal(symbolSet, (char *[]){"(", "\0"}, openParenExpected,
+                "'(' symbol");
+
+    // expr()
+    token = PeekNextToken();
+    if (ERR == token.tp)
+      error(token, "valid lexical token", lexerErr);
+    if (isExpr()) {
+      expr();
+    } else {
+      error(token, "a expression", syntaxError);
+    }
+
+    // ')'
+    eatTerminal(symbolSet, (char *[]){")", "\0"}, syntaxError,
+                "')' symbol at end of expression");
+
+    return;
+  }
+
+  // 'true' | 'false' | 'null' | 'this'
+  eatTerminal(reswordSet, (char *[]){"return", "\0"}, syntaxError,
+              "operand value");
+}
+
 /**********************************************************************
  **********************************************************************
  **********************************************************************
@@ -634,12 +1059,12 @@ void doStmt() {
  **********************************************************************
  */
 
-int InitParser(char *file_name) { return InitParser(file_name); }
+int InitParser(char *file_name) { return InitLexer(file_name); }
 
 ParserInfo Parse() {
   ParserInfo pi;
 
-  // implement the function
+  classDeclar();
 
   pi.er = none;
   return pi;
@@ -655,19 +1080,7 @@ int main(int argc, char **argv) {
   }
 
   InitParser(argv[1]);
-  // Parse();
-
-  // ParserWrapper info =
-  //     consumeTerminal(RESWORD, (char *[]){"class", "\0"}, classExpected);
-  //
-  // printf("Has run: %d, data: %d, %s\n", info.hasRun, info.info.er,
-  //        info.info.tk.lx);
-  //
-  // info = consumeTerminal(ID, (char *[]){"\0"}, idExpected);
-  //
-  // printf("Has run: %d, data: %d, %s\n", info.hasRun, info.info.er,
-  //        info.info.tk.lx);
-
+  Parse();
   StopParser();
 
   return 1;
