@@ -1,3 +1,4 @@
+#include <setjmp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +12,10 @@ typedef struct {
   unsigned int length;
   TokenType *set; // array
 } TokenTypeSet;
+
+// error handling
+jmp_buf buf;
+ParserInfo errInfo;
 
 // predefined type sets
 TokenTypeSet idSet = {1, (TokenType[]){ID}};
@@ -110,11 +115,11 @@ void error(Token token, char *err, SyntaxErrors exitCode) {
   printf("< Token found: %s, on line: %d >< Expected: %s >\n", token.lx,
          token.ln, err);
 
-  // clean up memory
-  StopParser();
+  errInfo.er = exitCode;
+  errInfo.tk = token;
 
   // exit
-  exit(exitCode);
+  longjmp(buf, true);
 }
 
 // consumption wrapper
@@ -294,8 +299,7 @@ void subroutineDeclar() {
     error(token, "valid lexical token", lexerErr);
 
   // if paramList() is NOT empty
-  if (SYMBOL != token.tp && !strcmpList(token.lx, (char *[]){")", "\0"})) {
-
+  if (!strcmpList(token.lx, (char *[]){")", "\0"})) {
     if (isType()) {
       paramList();
     } else {
@@ -309,13 +313,10 @@ void subroutineDeclar() {
 
   // subroutineBody()
   token = PeekNextToken();
-  if (ERR == token.tp)
-    error(token, "valid lexical token", lexerErr);
-  if (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"{", "\0"})) {
-    subroutineBody();
-  } else {
+  if (!eatNonTerminal(
+          &subroutineBody,
+          (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"{", "\0"}))))
     error(token, "'{' to start a subroutine body", syntaxError);
-  }
 }
 
 void paramList() {
@@ -979,6 +980,11 @@ int InitParser(char *file_name) { return InitLexer(file_name); }
 ParserInfo Parse() {
   ParserInfo pi;
 
+  // pseudo-async
+  if (setjmp(buf)) {
+    return errInfo;
+  }
+  // run first then
   classDeclar();
 
   pi.er = none;
