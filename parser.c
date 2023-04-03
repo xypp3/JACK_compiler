@@ -112,8 +112,6 @@ Boolean isExpr() {
 // We get to exit() !!!!!!!!!! Wooohoooo
 void error(Token token, char *err, SyntaxErrors exitCode) {
   // communicate error
-  // printf("< Token found: %s, on line: %d >< Expected: %s >\n", token.lx,
-  //        token.ln, err);
   printf("error type: %s expected, line: %d,token: %s,\n", err, token.ln,
          token.lx);
 
@@ -142,7 +140,6 @@ void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
     case RESWORD:
       if (typeSet.set[i] == token.tp && strcmpList(token.lx, acceptCases)) {
         GetNextToken();
-        // printf("\n\n hererereere plspls\n\n");
         return;
       }
 
@@ -461,7 +458,7 @@ void letStmt() {
     error(token, "valid lexical token", lexerErr);
 
   // if not equals THEN THERE is a'[' expr() ']'
-  if (!strcmpList(token.lx, (char *[]){"=", "\0"})) {
+  if (strcmpList(token.lx, (char *[]){"[", "\0"})) {
 
     // '['
     eatTerminal(symbolSet, (char *[]){"[", "\0"}, syntaxError, "'[' symbol");
@@ -477,7 +474,7 @@ void letStmt() {
   }
 
   // '='
-  eatTerminal(symbolSet, (char *[]){"=", "\0"}, equalExpected, "'=' symbol");
+  eatTerminal(symbolSet, (char *[]){"=", "\0"}, equalExpected, "= symbol");
 
   // expr()
   token = PeekNextToken(); // for error function
@@ -497,14 +494,17 @@ void ifStmt() {
   eatTerminal(symbolSet, (char *[]){"(", "\0"}, openParenExpected,
               "'(' symbol");
 
-  // expr()
   Token token = PeekNextToken(); // to give it a token to return
+  printf("\n\n\n%s\n\n\n", token.lx);
+  // expr()
   if (!eatNonTerminal(&expr, isExpr()))
     error(token, "a expression", syntaxError);
 
+  printf("\n\n\n%s\n\n\n", token.lx);
   // ')'
   eatTerminal(symbolSet, (char *[]){")", "\0"}, closeParenExpected,
               "')' symbol");
+  printf("\n\n\n%s\n\n\n", token.lx);
 
   // '{'
   eatTerminal(symbolSet, (char *[]){"{", "\0"}, openBraceExpected,
@@ -900,7 +900,7 @@ void operand() {
 
       // expr()
       token = PeekNextToken();
-      printf("\n\n%s\n\n", token.lx);
+      // printf("\n\n%s\n\n", token.lx);
       if (ERR == token.tp)
         error(token, "valid lexical token", lexerErr);
       if (isExpr()) {
@@ -909,7 +909,6 @@ void operand() {
         error(token, "a expression", syntaxError);
       }
       token = PeekNextToken();
-      printf("\n\n%s\n\n", token.lx);
       // ']'
       eatTerminal(symbolSet, (char *[]){"]", "\0"}, closeBracketExpected, "]");
 
