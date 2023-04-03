@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+gcc -std=c99 -g lexer.h parser.h lexer.c parser.c ParserGrader.c -o par
+
+# test the parse 
+./par

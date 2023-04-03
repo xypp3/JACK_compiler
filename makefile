@@ -1,7 +1,7 @@
 CC=gcc
-CFLAGS= -g -Wall -std=c99
+CFLAGS= -g -Wall -std=c99 
 TARGETS= lexer parser
-.PHONY= clean all
+.PHONY= all clean 
 
 # Default commands
 all: $(TARGETS)
@@ -14,12 +14,9 @@ clean:
 lexer: lexer.o
 	$(CC) $(CFLAGS) -o lexer lexer.o
 
-parser: parser.o
-	$(CC) $(CFLAGS) -o parser parser.o
+parser: parser.c
+	$(CC) $(CFLAGS) -D TEST -o parser lexer.h lexer.c parser.h parser.c 
 
 # Object comp
 lexer.o: lexer.c lexer.h
 	$(CC) $(CFLAGS) -c lexer.c -o lexer.o
-
-parser.o: parser.c parser.h lexer.o
-	$(CC) $(CFLAGS) -c parser.c -o parser.o
