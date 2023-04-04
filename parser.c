@@ -112,8 +112,8 @@ Boolean isExpr() {
 // We get to exit() !!!!!!!!!! Wooohoooo
 void error(Token token, char *err, SyntaxErrors exitCode) {
   // communicate error
-  printf("error type: %s expected, line: %d,token: %s,\n", err, token.ln,
-         token.lx);
+  // printf("error type: %s expected, line: %d,token: %s,\n", err, token.ln,
+  // token.lx);
 
   errInfo.er = exitCode;
   errInfo.tk = token;
@@ -139,17 +139,21 @@ void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
     case SYMBOL:
     case RESWORD:
       if (typeSet.set[i] == token.tp && strcmpList(token.lx, acceptCases)) {
-        GetNextToken();
+        Token tmp = GetNextToken();
         return;
       }
+      // TODO: FIGURE OUT END OF SWTICH CLASS BEHAVRIOUR
+      continue;
 
     case ID:
     case INT:
     case STRING:
       if (typeSet.set[i] == token.tp) {
-        GetNextToken();
+        Token tmp = GetNextToken();
         return;
       }
+      // TODO: FIGURE OUT END OF SWTICH CLASS BEHAVRIOUR
+      continue;
 
     // error already processed (unless error hunting in future, hmh)
     case EOFile:
@@ -158,6 +162,8 @@ void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
     }
   }
 
+  // printf("NOT FOUND  Token: %s, on line %d, with msg: %s\n", token.lx,
+  // token.ln, errMsg);
   error(token, errMsg, potentialErr);
 }
 
@@ -495,16 +501,16 @@ void ifStmt() {
               "'(' symbol");
 
   Token token = PeekNextToken(); // to give it a token to return
-  printf("\n\n\n%s\n\n\n", token.lx);
+  // printf("\n\n\n%s\n\n\n", token.lx);
   // expr()
   if (!eatNonTerminal(&expr, isExpr()))
     error(token, "a expression", syntaxError);
 
-  printf("\n\n\n%s\n\n\n", token.lx);
+  // printf("\n\n\n%s\n\n\n", token.lx);
   // ')'
   eatTerminal(symbolSet, (char *[]){")", "\0"}, closeParenExpected,
               "')' symbol");
-  printf("\n\n\n%s\n\n\n", token.lx);
+  // printf("\n\n\n%s\n\n\n", token.lx);
 
   // '{'
   eatTerminal(symbolSet, (char *[]){"{", "\0"}, openBraceExpected,
@@ -692,11 +698,15 @@ void returnStmt() {
   if (ERR == token.tp)
     error(token, "valid lexical token", lexerErr);
   if (isExpr()) {
+    // printf("\n\n\nhihihi\t");
     expr();
   }
 
+  token = PeekNextToken();
+  // printf("returnssss: %s %d,\n\n", token.lx, token.ln);
   //';'
   eatTerminal(symbolSet, (char *[]){";", "\0"}, semicolonExpected, ";");
+  // printf("returnssss: %s %d,\n\n", token.lx, token.ln);
 }
 
 void expr() {
@@ -1009,4 +1019,5 @@ int main(int argc, char **argv) {
 
   return 1;
 }
+
 #endif
