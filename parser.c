@@ -139,7 +139,7 @@ void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
     case SYMBOL:
     case RESWORD:
       if (typeSet.set[i] == token.tp && strcmpList(token.lx, acceptCases)) {
-        Token tmp = GetNextToken();
+        GetNextToken();
         return;
       }
       // TODO: FIGURE OUT END OF SWTICH CLASS BEHAVRIOUR
@@ -149,7 +149,7 @@ void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
     case INT:
     case STRING:
       if (typeSet.set[i] == token.tp) {
-        Token tmp = GetNextToken();
+        GetNextToken();
         return;
       }
       // TODO: FIGURE OUT END OF SWTICH CLASS BEHAVRIOUR
@@ -975,8 +975,8 @@ void operand() {
   }
 
   // 'true' | 'false' | 'null' | 'this'
-  eatTerminal(reswordSet, (char *[]){"return", "\0"}, syntaxError,
-              "operand value");
+  char *operandConst[] = {"true", "false", "null", "this", "\0"};
+  eatTerminal(reswordSet, operandConst, syntaxError, "operand value");
 }
 
 /**********************************************************************
