@@ -143,7 +143,7 @@ void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
         return;
       }
       // TODO: FIGURE OUT END OF SWTICH CLASS BEHAVRIOUR
-      continue;
+      break;
 
     case ID:
     case INT:
@@ -153,7 +153,7 @@ void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
         return;
       }
       // TODO: FIGURE OUT END OF SWTICH CLASS BEHAVRIOUR
-      continue;
+      break;
 
     // error already processed (unless error hunting in future, hmh)
     case EOFile:
