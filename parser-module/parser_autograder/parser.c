@@ -112,10 +112,8 @@ Boolean isExpr() {
 // We get to exit() !!!!!!!!!! Wooohoooo
 void error(Token token, char *err, SyntaxErrors exitCode) {
   // communicate error
-  // printf("< Token found: %s, on line: %d >< Expected: %s >\n", token.lx,
-  //        token.ln, err);
-  printf("error type: %s expected, line: %d,token: %s,\n", err, token.ln,
-         token.lx);
+  // printf("error type: %s expected, line: %d,token: %s,\n", err, token.ln,
+  // token.lx);
 
   errInfo.er = exitCode;
   errInfo.tk = token;
@@ -142,9 +140,10 @@ void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
     case RESWORD:
       if (typeSet.set[i] == token.tp && strcmpList(token.lx, acceptCases)) {
         GetNextToken();
-        // printf("\n\n hererereere plspls\n\n");
         return;
       }
+      // TODO: FIGURE OUT END OF SWTICH CLASS BEHAVRIOUR
+      break;
 
     case ID:
     case INT:
@@ -153,6 +152,8 @@ void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
         GetNextToken();
         return;
       }
+      // TODO: FIGURE OUT END OF SWTICH CLASS BEHAVRIOUR
+      break;
 
     // error already processed (unless error hunting in future, hmh)
     case EOFile:
@@ -161,6 +162,8 @@ void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
     }
   }
 
+  // printf("NOT FOUND  Token: %s, on line %d, with msg: %s\n", token.lx,
+  // token.ln, errMsg);
   error(token, errMsg, potentialErr);
 }
 
@@ -461,7 +464,7 @@ void letStmt() {
     error(token, "valid lexical token", lexerErr);
 
   // if not equals THEN THERE is a'[' expr() ']'
-  if (!strcmpList(token.lx, (char *[]){"=", "\0"})) {
+  if (strcmpList(token.lx, (char *[]){"[", "\0"})) {
 
     // '['
     eatTerminal(symbolSet, (char *[]){"[", "\0"}, syntaxError, "'[' symbol");
@@ -477,7 +480,7 @@ void letStmt() {
   }
 
   // '='
-  eatTerminal(symbolSet, (char *[]){"=", "\0"}, equalExpected, "'=' symbol");
+  eatTerminal(symbolSet, (char *[]){"=", "\0"}, equalExpected, "= symbol");
 
   // expr()
   token = PeekNextToken(); // for error function
@@ -497,14 +500,17 @@ void ifStmt() {
   eatTerminal(symbolSet, (char *[]){"(", "\0"}, openParenExpected,
               "'(' symbol");
 
-  // expr()
   Token token = PeekNextToken(); // to give it a token to return
+  // printf("\n\n\n%s\n\n\n", token.lx);
+  // expr()
   if (!eatNonTerminal(&expr, isExpr()))
     error(token, "a expression", syntaxError);
 
+  // printf("\n\n\n%s\n\n\n", token.lx);
   // ')'
   eatTerminal(symbolSet, (char *[]){")", "\0"}, closeParenExpected,
               "')' symbol");
+  // printf("\n\n\n%s\n\n\n", token.lx);
 
   // '{'
   eatTerminal(symbolSet, (char *[]){"{", "\0"}, openBraceExpected,
@@ -692,11 +698,15 @@ void returnStmt() {
   if (ERR == token.tp)
     error(token, "valid lexical token", lexerErr);
   if (isExpr()) {
+    // printf("\n\n\nhihihi\t");
     expr();
   }
 
+  token = PeekNextToken();
+  // printf("returnssss: %s %d,\n\n", token.lx, token.ln);
   //';'
   eatTerminal(symbolSet, (char *[]){";", "\0"}, semicolonExpected, ";");
+  // printf("returnssss: %s %d,\n\n", token.lx, token.ln);
 }
 
 void expr() {
@@ -900,7 +910,7 @@ void operand() {
 
       // expr()
       token = PeekNextToken();
-      printf("\n\n%s\n\n", token.lx);
+      // printf("\n\n%s\n\n", token.lx);
       if (ERR == token.tp)
         error(token, "valid lexical token", lexerErr);
       if (isExpr()) {
@@ -909,7 +919,6 @@ void operand() {
         error(token, "a expression", syntaxError);
       }
       token = PeekNextToken();
-      printf("\n\n%s\n\n", token.lx);
       // ']'
       eatTerminal(symbolSet, (char *[]){"]", "\0"}, closeBracketExpected, "]");
 
@@ -966,8 +975,8 @@ void operand() {
   }
 
   // 'true' | 'false' | 'null' | 'this'
-  eatTerminal(reswordSet, (char *[]){"return", "\0"}, syntaxError,
-              "operand value");
+  char *operandConst[] = {"true", "false", "null", "this", "\0"};
+  eatTerminal(reswordSet, operandConst, syntaxError, "operand value");
 }
 
 /**********************************************************************
@@ -1010,4 +1019,5 @@ int main(int argc, char **argv) {
 
   return 1;
 }
+
 #endif

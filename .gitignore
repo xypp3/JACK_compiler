@@ -1,1 +1,2 @@
-./parser_autograder/*
+./parser-module/parser_autograder/*
+./compiler-module/SymbolTableSelfGrader/*
