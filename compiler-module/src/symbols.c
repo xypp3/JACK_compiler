@@ -42,9 +42,11 @@ Boolean InitSymbol() {
   return true;
 }
 
+#ifndef TEST_SYMBOL
 int main(int argc, char **argv) {
 
   InitSymbol();
 
   return 0;
 }
+#endif

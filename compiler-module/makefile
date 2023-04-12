@@ -1,22 +1,21 @@
-CC=gcc
-CFLAGS= -g -Wall -std=c99 
-TARGETS= lexer parser
-.PHONY= all clean 
+#compiler makefile
+SRC:= $(shell find ./src -name '*.c')
+OBJS:= $(SRC:%=./build/%.o)
+TARGET:= compile
+CDEF:= -D TEST -D TEST_PARSER -D TEST_SYMBOL
+.PHONY:= test clean 
+
+CC:= gcc
+CFLAGS:= -g -Wall -std=c99 
 
 # Default commands
-all: $(TARGETS)
-	make $(TARGETS) 1>/dev/null
+./build/$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) $(OBJS) -o $@
 
+./build/%.c.o: %.c
+	mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(CDEF) -c $< -o $@ 
+
+#.PHONY
 clean:
-	rm $(TARGETS) *.o ./jack_samples_lexer/*_mine.txt 2>/dev/null
-
-# Executable comp
-lexer: lexer.o
-	$(CC) $(CFLAGS) -o lexer lexer.o
-
-parser: parser.c
-	$(CC) $(CFLAGS) -D TEST -o parser lexer.h lexer.c parser.h parser.c 
-
-# Object comp
-lexer.o: lexer.c lexer.h
-	$(CC) $(CFLAGS) -c lexer.c -o lexer.o
+	rm -r ./build
