@@ -49,11 +49,13 @@ void InitSymbol() {
 unsigned int hash(char *lexem) { return 0; }
 
 void insertHashTable(char *lexem, HashTable *table, SymbolKind kind,
-                     SymbolTypes type) {
+                     SymbolTypes type, HashTable *deeper) {
+  assert(table != NULL);
+
   unsigned int index = hash(lexem);
   HashRow *row;
   row = table->allRows[index];
-  //
+
   // insert new
   if (row == NULL) {
     row = (HashRow *)malloc(sizeof(HashRow));
@@ -62,7 +64,7 @@ void insertHashTable(char *lexem, HashTable *table, SymbolKind kind,
     strncpy(row->lexem, lexem, 128);
     row->k = kind;
     row->t = type;
-    row->deeperTable = NULL;
+    row->deeperTable = deeper;
     row->next = NULL;
     row->previous = NULL;
 
@@ -86,13 +88,12 @@ void insertHashTable(char *lexem, HashTable *table, SymbolKind kind,
   strncpy(row->lexem, lexem, 128);
   row->k = kind;
   row->t = type;
-  row->deeperTable = NULL;
+  row->deeperTable = deeper;
   row->next = NULL;
 }
 
 void freeHashTable(HashTable *hashTable) {
-  if (hashTable == NULL)
-    return;
+  assert(hashTable != NULL);
 
   for (int i = 0; i < HASHTABLE_SIZE; i++) {
     HashRow *row = hashTable->allRows[i];
@@ -118,18 +119,41 @@ void freeHashTable(HashTable *hashTable) {
 }
 
 void CloseSymbol() {
-  if (rootHashTable == NULL)
-    return;
-
+  assert(rootHashTable != NULL);
   freeHashTable(rootHashTable);
   rootHashTable = NULL; // DANGLING POINTER
 }
+
 #ifndef TEST_SYMBOL
+void printTable(HashTable *table) {
+  printf("HASHTABLE <%p> BEGINNING\n", table);
+
+  for (int i = 0; i < HASHTABLE_SIZE; i++) {
+    HashRow *row = table->allRows[i];
+    while (row != NULL) {
+      printf("%d::<%s>::scope<%d>::kind<%d>::type<%d>::deeper<%p>\n", i,
+             row->lexem, table->tableScope, row->k, row->t, row->deeperTable);
+      row = row->next;
+    }
+  }
+
+  printf("HASHTABLE END\n");
+}
 int main(int argc, char **argv) {
 
+  // reset test
   InitSymbol();
 
-  insertHashTable("hi", rootHashTable, CLASS, CLASS_TYPE);
+  insertHashTable("hi", rootHashTable, CLASS, CLASS_TYPE, NULL);
+  HashTable *class;
+  class = createHashTable(CLASS_SCOPE);
+  insertHashTable("main", rootHashTable, CLASS, CLASS_TYPE, class);
+  printTable(rootHashTable);
+
+  CloseSymbol();
+  InitSymbol();
+
+  insertHashTable("hi", rootHashTable, CLASS, CLASS_TYPE, NULL);
   printf("%s done\n", rootHashTable->allRows[hash("hi")]->lexem);
 
   CloseSymbol();
