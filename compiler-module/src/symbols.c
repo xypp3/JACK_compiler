@@ -50,41 +50,32 @@ unsigned int hash(char *lexem) { return 0; }
 
 void insertHashTable(char *lexem, HashTable *table, SymbolKind kind,
                      SymbolTypes type, HashTable *deeper) {
+
   assert(table != NULL);
 
   unsigned int index = hash(lexem);
-  HashRow *row;
-  row = table->allRows[index];
+  HashRow *row = table->allRows[index];
 
-  // insert new
-  if (row == NULL) {
-    row = (HashRow *)malloc(sizeof(HashRow));
-    table->allRows[index] = row; // set original to new malloced ptr
+  HashRow *previous = NULL;
+  while (row != NULL) {
+    if (0 == strncmp(row->lexem, lexem, 128))
+      return;
 
-    strncpy(row->lexem, lexem, 128);
-    row->k = kind;
-    row->t = type;
-    row->deeperTable = deeper;
-    row->next = NULL;
-    row->previous = NULL;
-
-    return;
-  }
-  // insert hash miss
-  while (row->next != NULL && 0 != strncmp(row->lexem, lexem, 128))
+    previous = row;
     row = row->next;
+  }
 
-  // lexem found in middle of as last element of hash miss list
-  if (row->next != NULL || 0 == strncmp(row->lexem, lexem, 128))
-    return;
+  row = (HashRow *)malloc(sizeof(HashRow));
 
-  // link up new item on end of list
-  HashRow *newItem = (HashRow *)malloc(sizeof(HashRow));
-  row->next = newItem;
-  newItem->previous = row;
+  if (previous != NULL) {
+    // hash miss case
+    previous->next = row;
+    row->previous = previous;
+  } else {
+    // new hash case
+    table->allRows[index] = row; // set original to new malloced ptr
+  }
 
-  // fill in new item details
-  row = row->next;
   strncpy(row->lexem, lexem, 128);
   row->k = kind;
   row->t = type;
@@ -149,6 +140,9 @@ int main(int argc, char **argv) {
   class = createHashTable(CLASS_SCOPE);
   insertHashTable("main", rootHashTable, CLASS, CLASS_TYPE, class);
   printTable(rootHashTable);
+  printf("%s done\n", rootHashTable->allRows[hash("hi")]->lexem);
+  printf("%s done\n", rootHashTable->allRows[hash("hi")]->previous->lexem);
+  printf("%s done\n", rootHashTable->allRows[hash("hi")]->next->lexem);
 
   CloseSymbol();
   InitSymbol();
