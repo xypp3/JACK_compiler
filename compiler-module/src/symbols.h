@@ -18,6 +18,12 @@ typedef enum {
   LOCAL_VAR,
   // CONSTANT, // e.g. int (4) or string ("hello world")
   // do i include constants like int or string const?
+
+  /* DO NOT SET !!!!
+      - hacky way of finding number of enumerated val
+      - ALWAYS KEEP AT BOTTOM OF ENUM
+  */
+  ENUM_SIZE
 } SymbolKind;
 
 typedef enum {
@@ -34,9 +40,11 @@ typedef struct HashTable_ HashTable;
 
 typedef struct HashRow_ {
   char lexem[128];
-  SymbolTypes t;
+  // SymbolTypes t;
+  char *type;
   SymbolKind k;
   // TODO: info (e.g. value of item)
+  unsigned int vmStackNum;
   HashTable *deeperTable;
   struct HashRow_ *next;
   struct HashRow_ *previous;
@@ -45,12 +53,19 @@ typedef struct HashRow_ {
 typedef struct HashTable_ {
   // TODO: find out how to dynamic *allRows[]
   HashRow **allRows; // 1D array of pointers
+
   ScopeLevels tableScope;
+  char name[128];
+
+  // array of SymbolKind counters
+  // accessed kindCounters[SymbolKind k] e.g. kindCounters[ARGS]
+  unsigned int kindCounters[ENUM_SIZE];
 } HashTable;
 
 void InitSymbol();
-HashTable *createHashTable(ScopeLevels scope);
-void insertHashTable(char *lexem, HashTable *table, SymbolKind kind,
-                     SymbolTypes type, HashTable *deeper);
+HashTable *createHashTable(ScopeLevels scope, char name[128]);
+int insertHashTable(char *lexem, HashTable *table, SymbolKind kind, char *type,
+                    HashTable *deeper);
 HashRow *findHashRow(char *lexem, HashTable *table);
+void freeHashTable(HashTable *hashTable);
 void StopSymbol();

@@ -7,14 +7,20 @@
 #define HASHTABLE_SIZE 10000
 
 HashTable *rootHashTable = NULL;
+// TODO: have a way of checking for valid type and if it's not found search
+// enire program tree at end to find
 
-HashTable *createHashTable(ScopeLevels scope) {
+HashTable *createHashTable(ScopeLevels scope, char name[128]) {
   HashTable *hashTable;
   hashTable = (HashTable *)malloc(sizeof(HashTable *));
   hashTable->tableScope = scope;
+  strncpy(hashTable->name, name, 128);
+
+  for (int i = 0; i < ENUM_SIZE; i++)
+    hashTable->kindCounters[i] = 0;
 
   hashTable->allRows = (HashRow **)malloc(sizeof(HashRow *) * HASHTABLE_SIZE);
-  for (unsigned int i = 0; i < HASHTABLE_SIZE; i++)
+  for (int i = 0; i < HASHTABLE_SIZE; i++)
     hashTable->allRows[i] = NULL;
 
   return hashTable;
@@ -23,7 +29,7 @@ HashTable *createHashTable(ScopeLevels scope) {
 void InitSymbol() {
   // already init exit
   assert(rootHashTable == NULL);
-  rootHashTable = createHashTable(PROGRAM_SCOPE);
+  rootHashTable = createHashTable(PROGRAM_SCOPE, "program");
 }
 
 unsigned int hash(char *lexem) {
@@ -34,10 +40,11 @@ unsigned int hash(char *lexem) {
   return hash % HASHTABLE_SIZE;
 }
 
-void insertHashTable(char *lexem, HashTable *table, SymbolKind kind,
-                     SymbolTypes type, HashTable *deeper) {
+int insertHashTable(char *lexem, HashTable *table, SymbolKind kind, char *type,
+                    HashTable *deeper) {
 
-  assert(table != NULL);
+  if (table == NULL)
+    table = rootHashTable;
 
   unsigned int index = hash(lexem);
   HashRow *row = table->allRows[index];
@@ -46,7 +53,7 @@ void insertHashTable(char *lexem, HashTable *table, SymbolKind kind,
   HashRow *previous = NULL;
   while (row != NULL) {
     if (0 == strncmp(row->lexem, lexem, 128))
-      return;
+      return 0; // false
 
     previous = row;
     row = row->next;
@@ -66,9 +73,13 @@ void insertHashTable(char *lexem, HashTable *table, SymbolKind kind,
 
   strncpy(row->lexem, lexem, 128);
   row->k = kind;
-  row->t = type;
+  row->type = type;
   row->deeperTable = deeper;
   row->next = NULL;
+  row->vmStackNum = table->kindCounters[kind];
+  table->kindCounters[kind]++;
+
+  return 1; // true
 }
 
 HashRow *findHashRow(char *lexem, HashTable *table) {
@@ -127,8 +138,9 @@ void printTable(HashTable *table) {
   for (int i = 0; i < HASHTABLE_SIZE; i++) {
     HashRow *row = table->allRows[i];
     while (row != NULL) {
-      printf("%d::<%s>::scope<%d>::kind<%d>::type<%d>::deeper<%p>\n", i,
-             row->lexem, table->tableScope, row->k, row->t, row->deeperTable);
+      printf("%d::<%s>::scope<%d>::kind<%d>::type<%s>::deeper<%p>\n", i,
+             row->lexem, table->tableScope, row->k, row->type,
+             row->deeperTable);
       row = row->next;
     }
   }
@@ -141,16 +153,16 @@ int main(int argc, char **argv) {
   // reset test
   InitSymbol();
 
-  insertHashTable("hi", rootHashTable, CLASS, CLASS_TYPE, NULL);
+  insertHashTable("hi", rootHashTable, CLASS, "class", NULL);
   HashTable *class;
-  class = createHashTable(CLASS_SCOPE);
-  insertHashTable("main", rootHashTable, CLASS, CLASS_TYPE, class);
+  class = createHashTable(CLASS_SCOPE, "main");
+  insertHashTable("main", rootHashTable, CLASS, "class", class);
   printTable(rootHashTable);
 
   StopSymbol();
   InitSymbol();
 
-  insertHashTable("hi", rootHashTable, CLASS, CLASS_TYPE, NULL);
+  insertHashTable("hi", rootHashTable, CLASS, "class", NULL);
   printf("%s done\n", rootHashTable->allRows[hash("hi")]->lexem);
 
   StopSymbol();
