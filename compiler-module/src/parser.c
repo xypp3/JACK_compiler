@@ -5,6 +5,7 @@
 
 #include "lexer.h"
 #include "parser.h"
+#include "symbols.h"
 
 typedef enum { false, true } Boolean;
 
@@ -61,6 +62,9 @@ void operand();
 char *operandStart[] = {"(", "true", "false", "null", "this", "\0"};
 
 // function stubs above
+HashTable *classHashTable = NULL;
+char *redefineMsg = "redeclaration of identifier";
+char *undefineMsg = "undeclared identifier";
 
 /**********************************************************************
  **********************************************************************
@@ -123,11 +127,9 @@ void error(Token token, char *err, SyntaxErrors exitCode) {
 }
 
 // consumption wrapper
-void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
-                 SyntaxErrors potentialErr, char *errMsg) {
+Token eatTerminal(TokenTypeSet typeSet, char **acceptCases,
+                  SyntaxErrors potentialErr, char *errMsg) {
   Token token = PeekNextToken();
-  // printf("Token: %s, on line %d, with msg: %s\n", token.lx, token.ln,
-  // errMsg);
 
   // check lexer error
   if (ERR == token.tp)
@@ -139,8 +141,7 @@ void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
     case SYMBOL:
     case RESWORD:
       if (typeSet.set[i] == token.tp && strcmpList(token.lx, acceptCases)) {
-        GetNextToken();
-        return;
+        return GetNextToken();
       }
       // TODO: FIGURE OUT END OF SWTICH CLASS BEHAVRIOUR
       break;
@@ -149,8 +150,7 @@ void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
     case INT:
     case STRING:
       if (typeSet.set[i] == token.tp) {
-        GetNextToken();
-        return;
+        return GetNextToken();
       }
       // TODO: FIGURE OUT END OF SWTICH CLASS BEHAVRIOUR
       break;
@@ -162,9 +162,8 @@ void eatTerminal(TokenTypeSet typeSet, char **acceptCases,
     }
   }
 
-  // printf("NOT FOUND  Token: %s, on line %d, with msg: %s\n", token.lx,
-  // token.ln, errMsg);
   error(token, errMsg, potentialErr);
+  return GetNextToken();
 }
 
 Boolean eatNonTerminal(void (*nonTerminal)(), int conditional) {
@@ -197,7 +196,12 @@ void classDeclar() {
               "'class' resword");
 
   // ID
-  eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+  Token classID =
+      eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+
+  classHashTable = createHashTable(CLASS_SCOPE);
+  if (!insertHashTable(classID.lx, NULL, CLASS, "class", classHashTable))
+    error(classID, redefineMsg, redecIdentifier);
 
   // '{'
   eatTerminal(symbolSet, (char *[]){"{", "\0"}, openBraceExpected,
@@ -237,16 +241,21 @@ void classVarDeclar() {
   Token token;
 
   // 'static' | 'field'
-  eatTerminal(reswordSet, (char *[]){"static", "field", "\0"}, classVarErr,
-              "'static' or 'field' resword");
+  Token statFiel = eatTerminal(reswordSet, (char *[]){"static", "field", "\0"},
+                               classVarErr, "'static' or 'field' resword");
+  SymbolKind statFielKind =
+      (0 == strncmp(statFiel.lx, "static", 128)) ? STATIC : FIELD;
 
   // type()
   token = PeekNextToken();
+  Token typeID = token;
   if (!eatNonTerminal(&type, isType()))
     error(token, "valid type token", illegalType);
 
   // identifier
-  eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+  Token id = eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+  if (!insertHashTable(id.lx, classHashTable, statFielKind, typeID.lx, NULL))
+    error(id, redefineMsg, redecIdentifier);
 
   // {, identifier}
   while (true) {
@@ -263,7 +272,9 @@ void classVarDeclar() {
     eatTerminal(symbolSet, (char *[]){",", "\0"}, syntaxError, "',' symbol");
 
     // identifier
-    eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+    Token id = eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+    if (!insertHashTable(id.lx, classHashTable, statFielKind, typeID.lx, NULL))
+      error(id, redefineMsg, redecIdentifier);
 
     // (to stretch whitespace in formatter)
   }
@@ -1004,7 +1015,11 @@ ParserInfo Parse() {
   return pi;
 }
 
-int StopParser() { return StopLexer(); }
+int StopParser() {
+  // reset ptr but keep hashtable
+  classHashTable = NULL;
+  return StopLexer();
+}
 
 #ifndef TEST_PARSER
 int main(int argc, char **argv) {
