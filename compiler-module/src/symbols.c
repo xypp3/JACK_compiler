@@ -7,6 +7,8 @@
 
 #define HASHTABLE_SIZE 10000
 
+typedef enum { false, true } Boolean;
+
 typedef struct HashRow_ HashRow;
 typedef struct HashTable_ HashTable;
 
@@ -46,7 +48,13 @@ void InitSymbol() {
   rootHashTable = createHashTable(PROGRAM_SCOPE);
 }
 
-unsigned int hash(char *lexem) { return 0; }
+unsigned int hash(char *lexem) {
+  unsigned int length = strlen(lexem);
+  unsigned int hash = 0;
+  for (int i = 0; i < length; i++)
+    hash += lexem[i] * 37;
+  return hash % HASHTABLE_SIZE;
+}
 
 void insertHashTable(char *lexem, HashTable *table, SymbolKind kind,
                      SymbolTypes type, HashTable *deeper) {
@@ -56,6 +64,7 @@ void insertHashTable(char *lexem, HashTable *table, SymbolKind kind,
   unsigned int index = hash(lexem);
   HashRow *row = table->allRows[index];
 
+  // traverse Linked List
   HashRow *previous = NULL;
   while (row != NULL) {
     if (0 == strncmp(row->lexem, lexem, 128))
@@ -67,6 +76,7 @@ void insertHashTable(char *lexem, HashTable *table, SymbolKind kind,
 
   row = (HashRow *)malloc(sizeof(HashRow));
 
+  // link up to new Linked List or to end of previous Linked List
   if (previous != NULL) {
     // hash miss case
     previous->next = row;
@@ -83,8 +93,23 @@ void insertHashTable(char *lexem, HashTable *table, SymbolKind kind,
   row->next = NULL;
 }
 
+HashRow *findHashRow(char *lexem, HashTable *table) {
+  HashRow *row = table->allRows[hash(lexem)];
+  while (row != NULL) {
+    if (0 == strncmp(row->lexem, lexem, 128))
+      return row;
+
+    row = row->next;
+  }
+
+  return NULL;
+}
+
+// recursive free table to free entire HashTable graph
 void freeHashTable(HashTable *hashTable) {
-  assert(hashTable != NULL);
+  // base case
+  if (hashTable == NULL)
+    return;
 
   for (int i = 0; i < HASHTABLE_SIZE; i++) {
     HashRow *row = hashTable->allRows[i];
@@ -93,13 +118,13 @@ void freeHashTable(HashTable *hashTable) {
     // free hash miss linked list
     //    frees last row in list in filnal free row at bottom
     while (row->next != NULL) {
+      if (row->deeperTable != NULL)
+        freeHashTable(row->deeperTable);
+
       row = row->next;
+      // free table further down in scope tree
       free(row->previous);
     }
-
-    // free table further down in scope tree
-    if (row->deeperTable != NULL)
-      freeHashTable(row->deeperTable);
 
     // free row
     free(row);
@@ -116,6 +141,7 @@ void CloseSymbol() {
 }
 
 #ifndef TEST_SYMBOL
+
 void printTable(HashTable *table) {
   printf("HASHTABLE <%p> BEGINNING\n", table);
 
@@ -130,6 +156,7 @@ void printTable(HashTable *table) {
 
   printf("HASHTABLE END\n");
 }
+
 int main(int argc, char **argv) {
 
   // reset test
@@ -140,9 +167,6 @@ int main(int argc, char **argv) {
   class = createHashTable(CLASS_SCOPE);
   insertHashTable("main", rootHashTable, CLASS, CLASS_TYPE, class);
   printTable(rootHashTable);
-  printf("%s done\n", rootHashTable->allRows[hash("hi")]->lexem);
-  printf("%s done\n", rootHashTable->allRows[hash("hi")]->previous->lexem);
-  printf("%s done\n", rootHashTable->allRows[hash("hi")]->next->lexem);
 
   CloseSymbol();
   InitSymbol();
@@ -154,4 +178,5 @@ int main(int argc, char **argv) {
 
   return 0;
 }
+
 #endif
