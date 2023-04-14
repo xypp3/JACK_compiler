@@ -17,8 +17,12 @@ Date Work Commenced:
 *************************************************************************/
 
 #include "compiler.h"
+#include "stdio.h"
 
-int InitCompiler() { return 1; }
+int InitCompiler() {
+  InitSymbol();
+  return 1;
+}
 
 ParserInfo compile(char *dir_name) {
   ParserInfo p;
@@ -29,7 +33,10 @@ ParserInfo compile(char *dir_name) {
   return p;
 }
 
-int StopCompiler() { return 1; }
+int StopCompiler() {
+  StopSymbol();
+  return 1;
+}
 
 #ifndef TEST_COMPILER
 int main() {

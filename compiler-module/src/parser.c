@@ -63,6 +63,7 @@ char *operandStart[] = {"(", "true", "false", "null", "this", "\0"};
 
 // function stubs above
 HashTable *classHashTable = NULL;
+HashTable *subroutineHashTable = NULL;
 char *redefineMsg = "redeclaration of identifier";
 char *undefineMsg = "undeclared identifier";
 
@@ -199,8 +200,8 @@ void classDeclar() {
   Token classID =
       eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
-  classHashTable = createHashTable(CLASS_SCOPE);
-  if (!insertHashTable(classID.lx, NULL, CLASS, "class", classHashTable))
+  classHashTable = createHashTable(CLASS_SCOPE, classID.lx);
+  if (!insertHashTable(classID, NULL, CLASS, "class", classHashTable))
     error(classID, redefineMsg, redecIdentifier);
 
   // '{'
@@ -254,7 +255,7 @@ void classVarDeclar() {
 
   // identifier
   Token id = eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
-  if (!insertHashTable(id.lx, classHashTable, statFielKind, typeID.lx, NULL))
+  if (!insertHashTable(id, classHashTable, statFielKind, typeID.lx, NULL))
     error(id, redefineMsg, redecIdentifier);
 
   // {, identifier}
@@ -273,7 +274,7 @@ void classVarDeclar() {
 
     // identifier
     Token id = eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
-    if (!insertHashTable(id.lx, classHashTable, statFielKind, typeID.lx, NULL))
+    if (!insertHashTable(id, classHashTable, statFielKind, typeID.lx, NULL))
       error(id, redefineMsg, redecIdentifier);
 
     // (to stretch whitespace in formatter)
@@ -291,9 +292,16 @@ void subroutineDeclar() {
   Token token;
 
   // 'constructor' | 'function' | 'method'
-  eatTerminal(reswordSet, (char *[]){"constructor", "function", "method", "\0"},
-              subroutineDeclarErr,
-              "'constructor' or 'function' or 'method' resword");
+  Token subToken = eatTerminal(
+      reswordSet, (char *[]){"constructor", "function", "method", "\0"},
+      subroutineDeclarErr, "'constructor' or 'function' or 'method' resword");
+  SymbolKind subKind;
+  if (0 == strncmp("constructor", subToken.lx, 11))
+    subKind = CONSTRUCTOR;
+  else if (0 == strncmp("function", subToken.lx, 8))
+    subKind = FUNCTION;
+  else
+    subKind = METHOD;
 
   // type() | 'void'
   token = PeekNextToken();
@@ -303,12 +311,30 @@ void subroutineDeclar() {
     type();
   } else {
     // 'void'
-    eatTerminal(reswordSet, (char *[]){"void", "\0"}, illegalType,
-                "expected type or 'void' token");
+    token = eatTerminal(reswordSet, (char *[]){"void", "\0"}, illegalType,
+                        "expected type or 'void' token");
   }
 
   // identifier
-  eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+  Token id = eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+
+  // symbol table
+  subroutineHashTable = NULL;
+  subroutineHashTable = createHashTable(SUBROUTINE_SCOPE, id.lx);
+  if (!insertHashTable(id, classHashTable, subKind, token.lx,
+                       subroutineHashTable))
+    error(id, redefineMsg, redecIdentifier);
+  // <<<<<< insert class ref
+  // TODO: FIND ONE LINE SETTING
+  Token implicitArg;
+  implicitArg.tp = ID;
+  strncpy(implicitArg.lx, "this", 128);
+  implicitArg.ec = NoLexErr;
+  implicitArg.ln = id.ln;
+  strncpy(implicitArg.fl, id.fl, 32);
+
+  insertHashTable(implicitArg, subroutineHashTable, ARGS, classHashTable->name,
+                  NULL);
 
   // '('
   eatTerminal(symbolSet, (char *[]){"(", "\0"}, openParenExpected,

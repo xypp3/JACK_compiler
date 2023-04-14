@@ -20,7 +20,7 @@ typedef enum {
   // do i include constants like int or string const?
 
   /* DO NOT SET !!!!
-      - hacky way of finding number of enumerated val
+      - hacky way of finding number of enumerated vals
       - ALWAYS KEEP AT BOTTOM OF ENUM
   */
   ENUM_SIZE
@@ -39,7 +39,7 @@ typedef struct HashRow_ HashRow;
 typedef struct HashTable_ HashTable;
 
 typedef struct HashRow_ {
-  char lexem[128];
+  Token token;
   // SymbolTypes t;
   char *type;
   SymbolKind k;
@@ -64,7 +64,7 @@ typedef struct HashTable_ {
 
 void InitSymbol();
 HashTable *createHashTable(ScopeLevels scope, char name[128]);
-int insertHashTable(char *lexem, HashTable *table, SymbolKind kind, char *type,
+int insertHashTable(Token token, HashTable *table, SymbolKind kind, char *type,
                     HashTable *deeper);
 HashRow *findHashRow(char *lexem, HashTable *table);
 void freeHashTable(HashTable *hashTable);

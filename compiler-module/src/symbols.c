@@ -40,19 +40,19 @@ unsigned int hash(char *lexem) {
   return hash % HASHTABLE_SIZE;
 }
 
-int insertHashTable(char *lexem, HashTable *table, SymbolKind kind, char *type,
+int insertHashTable(Token token, HashTable *table, SymbolKind kind, char *type,
                     HashTable *deeper) {
 
   if (table == NULL)
     table = rootHashTable;
 
-  unsigned int index = hash(lexem);
+  unsigned int index = hash(token.lx);
   HashRow *row = table->allRows[index];
 
   // traverse Linked List
   HashRow *previous = NULL;
   while (row != NULL) {
-    if (0 == strncmp(row->lexem, lexem, 128))
+    if (0 == strncmp(row->token.lx, token.lx, 128))
       return 0; // false
 
     previous = row;
@@ -71,7 +71,7 @@ int insertHashTable(char *lexem, HashTable *table, SymbolKind kind, char *type,
     table->allRows[index] = row; // set original to new malloced ptr
   }
 
-  strncpy(row->lexem, lexem, 128);
+  row->token = token;
   row->k = kind;
   row->type = type;
   row->deeperTable = deeper;
@@ -85,7 +85,7 @@ int insertHashTable(char *lexem, HashTable *table, SymbolKind kind, char *type,
 HashRow *findHashRow(char *lexem, HashTable *table) {
   HashRow *row = table->allRows[hash(lexem)];
   while (row != NULL) {
-    if (0 == strncmp(row->lexem, lexem, 128))
+    if (0 == strncmp(row->token.lx, lexem, 128))
       return row;
 
     row = row->next;
@@ -139,7 +139,7 @@ void printTable(HashTable *table) {
     HashRow *row = table->allRows[i];
     while (row != NULL) {
       printf("%d::<%s>::scope<%d>::kind<%d>::type<%s>::deeper<%p>\n", i,
-             row->lexem, table->tableScope, row->k, row->type,
+             row->token.lx, table->tableScope, row->k, row->type,
              row->deeperTable);
       row = row->next;
     }
@@ -163,7 +163,7 @@ int main(int argc, char **argv) {
   InitSymbol();
 
   insertHashTable("hi", rootHashTable, CLASS, "class", NULL);
-  printf("%s done\n", rootHashTable->allRows[hash("hi")]->lexem);
+  printf("%s done\n", rootHashTable->allRows[hash("hi")]->token.lx);
 
   StopSymbol();
 
