@@ -1,32 +1,10 @@
 #include "symbols.h"
 
 #include "assert.h"
-#include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
 
 #define HASHTABLE_SIZE 10000
-
-typedef enum { false, true } Boolean;
-
-typedef struct HashRow_ HashRow;
-typedef struct HashTable_ HashTable;
-
-typedef struct HashRow_ {
-  char lexem[128];
-  SymbolTypes t;
-  SymbolKind k;
-  // TODO: info
-
-  HashTable *deeperTable;
-  struct HashRow_ *next;
-  struct HashRow_ *previous;
-} HashRow;
-
-typedef struct HashTable_ {
-  HashRow **allRows; // 1D array of pointers
-  ScopeLevels tableScope;
-} HashTable;
 
 HashTable *rootHashTable = NULL;
 
@@ -134,13 +112,14 @@ void freeHashTable(HashTable *hashTable) {
   free(hashTable);
 }
 
-void CloseSymbol() {
+void StopSymbol() {
   assert(rootHashTable != NULL);
   freeHashTable(rootHashTable);
-  rootHashTable = NULL; // DANGLING POINTER
+  rootHashTable = NULL; // PREVENT DANGLING POINTER
 }
 
 #ifndef TEST_SYMBOL
+#include "stdio.h"
 
 void printTable(HashTable *table) {
   printf("HASHTABLE <%p> BEGINNING\n", table);
@@ -168,13 +147,13 @@ int main(int argc, char **argv) {
   insertHashTable("main", rootHashTable, CLASS, CLASS_TYPE, class);
   printTable(rootHashTable);
 
-  CloseSymbol();
+  StopSymbol();
   InitSymbol();
 
   insertHashTable("hi", rootHashTable, CLASS, CLASS_TYPE, NULL);
   printf("%s done\n", rootHashTable->allRows[hash("hi")]->lexem);
 
-  CloseSymbol();
+  StopSymbol();
 
   return 0;
 }
