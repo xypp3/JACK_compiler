@@ -366,24 +366,27 @@ void subroutineDeclar() {
 }
 
 void paramList() {
-  Token token;
+  Token typeToken;
 
   // type()
-  token = PeekNextToken(); // for error function
+  typeToken = PeekNextToken(); // for error function
   if (!eatNonTerminal(&type, isType()))
-    error(token, "valid type token", illegalType);
+    error(typeToken, "valid type token", illegalType);
 
   // identifier
-  eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+  Token idToken =
+      eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+  if (!insertHashTable(idToken, subroutineHashTable, ARGS, typeToken.lx, NULL))
+    error(idToken, redefineMsg, redecIdentifier);
 
   // {',' type() identifier}
   while (true) {
-    token = PeekNextToken();
-    if (ERR == token.tp)
-      error(token, "valid lexical token", lexerErr);
+    typeToken = PeekNextToken();
+    if (ERR == typeToken.tp)
+      error(typeToken, "valid lexical token", lexerErr);
 
     // break case
-    if (!strcmpList(token.lx, (char *[]){",", "\0"})) {
+    if (!strcmpList(typeToken.lx, (char *[]){",", "\0"})) {
       break;
     }
 
@@ -391,12 +394,15 @@ void paramList() {
     eatTerminal(symbolSet, (char *[]){",", "\0"}, syntaxError, "',' symbol");
 
     // type()
-    token = PeekNextToken(); // for error function
+    typeToken = PeekNextToken(); // for error function
     if (!eatNonTerminal(&type, isType()))
-      error(token, "valid type token", illegalType);
+      error(typeToken, "valid type token", illegalType);
 
     // identifier
-    eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+    idToken = eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+    if (!insertHashTable(idToken, subroutineHashTable, ARGS, typeToken.lx,
+                         NULL))
+      error(idToken, redefineMsg, redecIdentifier);
   }
 }
 
