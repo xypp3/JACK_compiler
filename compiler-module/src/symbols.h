@@ -63,7 +63,7 @@ typedef struct HashTable_ {
 } HashTable;
 
 void InitSymbol();
-HashTable *createHashTable(ScopeLevels scope, char name[128]);
+HashTable *createHashTable(ScopeLevels scope, char *name);
 int insertHashTable(Token token, HashTable *table, SymbolKind kind, char *type,
                     HashTable *deeper);
 HashRow *findHashRow(char *lexem, HashTable *table);

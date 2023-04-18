@@ -4,15 +4,15 @@
 #include "stdlib.h"
 #include "string.h"
 
-#define HASHTABLE_SIZE 10000
+#define HASHTABLE_SIZE 1000
 
 HashTable *rootHashTable = NULL;
 // TODO: have a way of checking for valid type and if it's not found search
 // enire program tree at end to find
 
-HashTable *createHashTable(ScopeLevels scope, char name[128]) {
+HashTable *createHashTable(ScopeLevels scope, char *name) {
   HashTable *hashTable;
-  hashTable = (HashTable *)malloc(sizeof(HashTable *));
+  hashTable = (HashTable *)malloc(sizeof(HashTable));
   hashTable->tableScope = scope;
   strncpy(hashTable->name, name, 128);
 
@@ -152,17 +152,20 @@ int main(int argc, char **argv) {
 
   // reset test
   InitSymbol();
+  Token t;
+  strncpy(t.lx, "hi", 128);
 
-  insertHashTable("hi", rootHashTable, CLASS, "class", NULL);
+  insertHashTable(t, rootHashTable, CLASS, "class", NULL);
   HashTable *class;
   class = createHashTable(CLASS_SCOPE, "main");
-  insertHashTable("main", rootHashTable, CLASS, "class", class);
+  strncpy(t.lx, "main", 128);
+  insertHashTable(t, rootHashTable, CLASS, "class", class);
   printTable(rootHashTable);
 
   StopSymbol();
   InitSymbol();
 
-  insertHashTable("hi", rootHashTable, CLASS, "class", NULL);
+  insertHashTable(t, rootHashTable, CLASS, "class", NULL);
   printf("%s done\n", rootHashTable->allRows[hash("hi")]->token.lx);
 
   StopSymbol();
