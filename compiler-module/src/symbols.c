@@ -60,6 +60,7 @@ unsigned int hash(char *lexem) {
 int insertHashTable(Token token, HashTable *table, SymbolKind kind, char *type,
                     HashTable *deeper) {
 
+  // IDK HOW TO AVOID THIS METHOD
   if (table == NULL)
     table = rootHashTable;
 
@@ -102,6 +103,10 @@ int insertHashTable(Token token, HashTable *table, SymbolKind kind, char *type,
 // used to be (Token token) instead of (char *lexem)
 //    is there a reason for it to be otherwise?
 HashRow *findHashRow(char *lexem, HashTable *table) {
+  // IDK HOW TO AVOID THIS METHOD
+  if (table == NULL)
+    table = rootHashTable;
+
   HashRow *row = table->allRows[hash(lexem)];
   while (row != NULL) {
     if (0 == strncmp(row->token.lx, lexem, 128))
