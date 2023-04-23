@@ -1,6 +1,7 @@
 #include "symbols.h"
 
 #include "assert.h"
+#include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
 
@@ -9,6 +10,14 @@
 HashTable *rootHashTable = NULL;
 // TODO: have a way of checking for valid type and if it's not found search
 // enire program tree at end to find
+typedef struct {
+  Token token;
+  char className[128];
+} LostKids;
+
+LostKids *undeclarList = NULL;
+size_t undeclarListIter;
+size_t undeclarListSize;
 
 HashTable *createHashTable(ScopeLevels scope, char *name) {
   HashTable *hashTable;
@@ -30,6 +39,14 @@ void InitSymbol() {
   // already init exit
   assert(rootHashTable == NULL);
   rootHashTable = createHashTable(PROGRAM_SCOPE, "program");
+
+  undeclarListSize = 64;
+  undeclarList = (LostKids *)malloc(sizeof(LostKids) * undeclarListSize);
+  for (int i = 0; i < 128; i++) {
+    strncpy(undeclarList[i].className, "", 128);
+  }
+
+  undeclarListIter = 0;
 }
 
 unsigned int hash(char *lexem) {
@@ -82,6 +99,8 @@ int insertHashTable(Token token, HashTable *table, SymbolKind kind, char *type,
   return 1; // true
 }
 
+// used to be (Token token) instead of (char *lexem)
+//    is there a reason for it to be otherwise?
 HashRow *findHashRow(char *lexem, HashTable *table) {
   HashRow *row = table->allRows[hash(lexem)];
   while (row != NULL) {
@@ -92,6 +111,65 @@ HashRow *findHashRow(char *lexem, HashTable *table) {
   }
 
   return NULL;
+}
+
+HashRow *findRowOrAddUndeclar(Token token, HashTable *table, char *className) {
+  HashRow *row = findHashRow(token.lx, table);
+  if (NULL != row)
+    return row;
+
+  addUndeclar(token, className);
+
+  return NULL;
+}
+
+void addUndeclar(Token token, char *className) {
+  // check if already in undeclarList
+  for (int i = 0; i < undeclarListIter; i++) {
+    if ((0 == strncmp(undeclarList[i].token.lx, token.lx, 128)) &&
+        ((0 != strncmp(className, "", 128)) ||
+         (0 == strncmp(undeclarList[i].className, className, 128))))
+      return;
+  }
+
+  // check list size
+  if (undeclarListSize <= undeclarListIter) {
+    undeclarListSize *= 4;
+    void *err = realloc(undeclarList, undeclarListSize);
+    if (NULL == err)
+      printf("realloc err");
+    exit(404);
+  }
+
+  // add to undeclarList
+  undeclarList[undeclarListIter].token = token;
+  strncpy(undeclarList[undeclarListIter].className, className, 128);
+  undeclarListIter++;
+}
+
+Token findLostKids() {
+  HashRow *class;
+  for (; 0 <= undeclarListIter; undeclarListIter--) {
+    LostKids curr = undeclarList[undeclarListIter];
+    if (0 == strncmp(curr.className, "", 128)) {
+      // class
+      if (NULL == findHashRow(curr.token.lx, rootHashTable))
+        return curr.token;
+
+    } else {
+      // class subroutine
+      if (NULL == (class = findHashRow(curr.className, rootHashTable)) ||
+          NULL == findHashRow(curr.token.lx, class->deeperTable))
+        /* TODO: might lead to subr err showing up before class err
+         *    cause this can exit early in the undeclarList array
+         */
+        return curr.token;
+    }
+  }
+
+  Token t;
+  t.ec = none;
+  return t;
 }
 
 // recursive free table to free entire HashTable graph
@@ -126,18 +204,20 @@ void freeHashTable(HashTable *hashTable) {
 void StopSymbol() {
   assert(rootHashTable != NULL);
   freeHashTable(rootHashTable);
-  rootHashTable = NULL; // PREVENT DANGLING POINTER
+  free(undeclarList);
+
+  rootHashTable = NULL;
+  undeclarList = NULL;
 }
 
 #ifndef TEST_SYMBOL
-#include "stdio.h"
 
 void printTable(HashTable *table) {
   printf("HASHTABLE <%p> BEGINNING\n", table);
 
   for (int i = 0; i < HASHTABLE_SIZE; i++) {
     HashRow *row = table->allRows[i];
-    while (row != NULL) {
+    while (NULL != row) {
       printf("%d::<%s>::scope<%d>::kind<%d>::type<%s>::deeper<%p>\n", i,
              row->token.lx, table->tableScope, row->k, row->type,
              row->deeperTable);
