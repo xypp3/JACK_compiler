@@ -39,6 +39,7 @@ ParserInfo compile(char *dir_name) {
     return p;
   }
 
+  // initial parsing
   while (NULL != (file = readdir(dir))) {
     if (p.er != none)
       break;
@@ -50,12 +51,21 @@ ParserInfo compile(char *dir_name) {
 
     if (0 == InitParser(parseFile)) {
       p.er = lexerErr;
-      break;
+      return p;
     }
 
     p = Parse();
     StopParser();
   }
+
+  // STAGE
+  if (none != (p.tk = findLostKids()).ec) {
+    p.er = undecIdentifier;
+    return p;
+  }
+
+  // code generation parse
+  // TODO
 
   return p;
 }
