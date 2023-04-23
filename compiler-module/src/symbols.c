@@ -19,6 +19,8 @@ LostKids *undeclarList = NULL;
 size_t undeclarListIter;
 size_t undeclarListSize;
 
+HashTable *rootHT() { return rootHashTable; }
+
 HashTable *createHashTable(ScopeLevels scope, char *name) {
   HashTable *hashTable;
   hashTable = (HashTable *)malloc(sizeof(HashTable));
@@ -60,9 +62,7 @@ unsigned int hash(char *lexem) {
 int insertHashTable(Token token, HashTable *table, SymbolKind kind, char *type,
                     HashTable *deeper) {
 
-  // IDK HOW TO AVOID THIS METHOD
-  if (table == NULL)
-    table = rootHashTable;
+  assert(NULL != table && NULL != type);
 
   unsigned int index = hash(token.lx);
   HashRow *row = table->allRows[index];
@@ -103,9 +103,7 @@ int insertHashTable(Token token, HashTable *table, SymbolKind kind, char *type,
 // used to be (Token token) instead of (char *lexem)
 //    is there a reason for it to be otherwise?
 HashRow *findHashRow(char *lexem, HashTable *table) {
-  // IDK HOW TO AVOID THIS METHOD
-  if (table == NULL)
-    table = rootHashTable;
+  assert(NULL != lexem && NULL != table);
 
   HashRow *row = table->allRows[hash(lexem)];
   while (row != NULL) {
@@ -114,16 +112,6 @@ HashRow *findHashRow(char *lexem, HashTable *table) {
 
     row = row->next;
   }
-
-  return NULL;
-}
-
-HashRow *findRowOrAddUndeclar(Token token, HashTable *table, char *className) {
-  HashRow *row = findHashRow(token.lx, table);
-  if (NULL != row)
-    return row;
-
-  addUndeclar(token, className);
 
   return NULL;
 }

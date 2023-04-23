@@ -62,13 +62,13 @@ typedef struct HashTable_ {
   unsigned int kindCounters[ENUM_SIZE];
 } HashTable;
 
+HashTable *rootHT();
 void InitSymbol();
 HashTable *createHashTable(ScopeLevels scope, char *name);
 int insertHashTable(Token token, HashTable *table, SymbolKind kind, char *type,
                     HashTable *deeper);
 HashRow *findHashRow(char *lexem, HashTable *table);
 void addUndeclar(Token token, char *className);
-HashRow *findRowOrAddUndeclar(Token token, HashTable *table, char *className);
 Token findLostKids();
 void freeHashTable(HashTable *hashTable);
 void StopSymbol();
