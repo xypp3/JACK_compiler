@@ -17,7 +17,9 @@ Date Work Commenced:
 *************************************************************************/
 
 #include "compiler.h"
+#include "dirent.h"
 #include "stdio.h"
+#include "string.h"
 
 int InitCompiler() {
   InitSymbol();
@@ -26,10 +28,35 @@ int InitCompiler() {
 
 ParserInfo compile(char *dir_name) {
   ParserInfo p;
-
-  // write your code below
-
   p.er = none;
+
+  struct dirent *file;
+  DIR *dir;
+
+  if (NULL == (dir = opendir(dir_name))) {
+    printf("directory %s, does not exist", dir_name);
+    p.er = syntaxError;
+    return p;
+  }
+
+  while (NULL != (file = readdir(dir))) {
+    if (p.er != none)
+      break;
+    if (NULL == strstr(file->d_name, ".jack"))
+      continue;
+
+    char parseFile[512];
+    sprintf(parseFile, "%s/%s", dir_name, file->d_name);
+
+    if (0 == InitParser(parseFile)) {
+      p.er = lexerErr;
+      break;
+    }
+
+    p = Parse();
+    StopParser();
+  }
+
   return p;
 }
 
@@ -41,8 +68,7 @@ int StopCompiler() {
 #ifndef TEST_COMPILER
 int main() {
   InitCompiler();
-  ParserInfo p = compile("Pong");
-  // PrintError(p);
+  compile("/home/xypp3/jack_compiler/compiler-module/data/Pong");
   StopCompiler();
   return 1;
 }
