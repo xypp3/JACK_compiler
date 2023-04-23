@@ -1,9 +1,12 @@
 /* TODOs for SYMBOL TABLE
- * varStmt() :: undeclar
- * letStmt() :: redeclar
- * subroutineCall() :: undeclar (var OR class OR subr OR diff class's subr!!!)
+ * DONE type() :: undeclar
+ * DONE varStmt() :: undeclar
+ * DONE letStmt() :: redeclar
+ * DONE subroutineCall() :: undeclar (var OR class OR subr OR diff class's
+ *  subr!!!)
  * operand() :: undeclar (var OR class OR subr OR diff class's subr!!!)
  */
+
 #include <setjmp.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -206,7 +209,7 @@ void classDeclar() {
       eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
   classHashTable = createHashTable(CLASS_SCOPE, classID.lx);
-  if (!insertHashTable(classID, NULL, CLASS, "class", classHashTable))
+  if (!insertHashTable(classID, rootHT(), CLASS, "class", classHashTable))
     error(classID, redefineMsg, redecIdentifier);
 
   // '{'
@@ -292,7 +295,8 @@ void classVarDeclar() {
 void type() {
   Token t = PeekNextToken();
   if (ID == t.tp) {
-    findRowOrAddUndeclar(t, NULL, classHashTable->name);
+    if (NULL == findHashRow(t.lx, rootHT()))
+      addUndeclar(t, classHashTable->name);
   }
 
   eatTerminal(typeSet, typeStart, illegalType, "valid type token");
@@ -518,9 +522,11 @@ void letStmt() {
               "'let' resword expected");
 
   // identifier
+  token = PeekNextToken();
   eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
-  // TODO: what is the search order? first class, then subroutine, OR first
-  //      subroutine, then class
+  if (NULL == findHashRow(token.lx, classHashTable) ||
+      NULL == findHashRow(token.lx, subroutineHashTable))
+    addUndeclar(token, classHashTable->name);
 
   // [ '[' expr() ']' ]
   token = PeekNextToken();
@@ -685,10 +691,10 @@ void doStmt() {
 }
 
 void subroutineCall() {
-  Token token;
+  Token token, callID;
 
   // identifier
-  token = PeekNextToken();
+  callID = PeekNextToken();
   eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
   // [ '.'identifier ]
@@ -700,7 +706,23 @@ void subroutineCall() {
     eatTerminal(symbolSet, (char *[]){".", "\0"}, syntaxError, "'.' symbol");
 
     // identifier
+    token = PeekNextToken();
     eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+
+    // find class
+    HashRow *class = findHashRow(callID.lx, rootHT());
+    if (NULL == class) {
+      addUndeclar(callID, callID.lx);
+      addUndeclar(token, callID.lx);
+    } else if (NULL == findHashRow(token.lx, class->deeperTable))
+      // find subroutine
+      addUndeclar(token, callID.lx);
+  } else {
+    // for symbol table purposes (class internal subroutine call)
+
+    // find subroutine in THIS class
+    if (NULL == findHashRow(callID.lx, classHashTable))
+      addUndeclar(callID, classHashTable->name);
   }
 
   // '('
