@@ -1,3 +1,9 @@
+/* TODOs for SYMBOL TABLE
+ * varStmt() :: undeclar
+ * letStmt() :: redeclar
+ * subroutineCall() :: undeclar (var OR class OR subr OR diff class's subr!!!)
+ * operand() :: undeclar (var OR class OR subr OR diff class's subr!!!)
+ */
 #include <setjmp.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -114,7 +120,6 @@ Boolean isExpr() {
   }
 }
 
-// We get to exit() !!!!!!!!!! Wooohoooo
 void error(Token token, char *err, SyntaxErrors exitCode) {
   // communicate error
   // printf("error type: %s expected, line: %d,token: %s,\n", err, token.ln,
@@ -285,6 +290,11 @@ void classVarDeclar() {
 }
 
 void type() {
+  Token t = PeekNextToken();
+  if (ID == t.tp) {
+    findRowOrAddUndeclar(t, NULL, classHashTable->name);
+  }
+
   eatTerminal(typeSet, typeStart, illegalType, "valid type token");
 }
 
@@ -465,7 +475,11 @@ void varStmt() {
     error(token, "valid type token", illegalType);
 
   // identifier
+  token = PeekNextToken();
   eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+  if (NULL == findHashRow(token.lx, classHashTable) ||
+      0 == insertHashTable(token, subroutineHashTable, LOCAL_VAR, "var", NULL))
+    error(token, redefineMsg, redecIdentifier);
 
   // {, identifier}
   while (true) {
@@ -482,7 +496,12 @@ void varStmt() {
     eatTerminal(symbolSet, (char *[]){",", "\0"}, syntaxError, "',' symbol");
 
     // identifier
+    token = PeekNextToken();
     eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+    if (NULL == findHashRow(token.lx, classHashTable) ||
+        0 ==
+            insertHashTable(token, subroutineHashTable, LOCAL_VAR, "var", NULL))
+      error(token, redefineMsg, redecIdentifier);
 
     // (to stretch whitespace in formatter)
   }
@@ -500,6 +519,8 @@ void letStmt() {
 
   // identifier
   eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+  // TODO: what is the search order? first class, then subroutine, OR first
+  //      subroutine, then class
 
   // [ '[' expr() ']' ]
   token = PeekNextToken();
@@ -746,10 +767,9 @@ void returnStmt() {
   }
 
   token = PeekNextToken();
-  // printf("returnssss: %s %d,\n\n", token.lx, token.ln);
+
   //';'
   eatTerminal(symbolSet, (char *[]){";", "\0"}, semicolonExpected, ";");
-  // printf("returnssss: %s %d,\n\n", token.lx, token.ln);
 }
 
 void expr() {
@@ -910,6 +930,8 @@ void factor() {
            (RESWORD == token.tp && strcmpList(token.lx, operandStart))) {
     operand();
   }
+
+  // todo empty controlflow could lead to issue unless errored
 }
 
 void operand() {
