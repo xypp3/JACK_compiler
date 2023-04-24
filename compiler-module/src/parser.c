@@ -4,7 +4,7 @@
  * DONE letStmt() :: redeclar
  * DONE subroutineCall() :: undeclar (var OR class OR subr OR diff class's
  *  subr!!!)
- * operand() :: undeclar (var OR class OR subr OR diff class's subr!!!)
+ * DONE operand() :: undeclar (var OR class OR subr OR diff class's subr!!!)
  */
 
 #include <setjmp.h>
@@ -257,7 +257,7 @@ void classVarDeclar() {
 
   // type()
   token = PeekNextToken();
-  Token typeID = token;
+  Token typeID = PeekNextToken();
   if (!eatNonTerminal(&type, isType()))
     error(token, "valid type token", illegalType);
 
@@ -481,7 +481,7 @@ void varStmt() {
   // identifier
   token = PeekNextToken();
   eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
-  if (NULL == findHashRow(token.lx, classHashTable) ||
+  if (NULL != findHashRow(token.lx, classHashTable) ||
       0 == insertHashTable(token, subroutineHashTable, LOCAL_VAR, "var", NULL))
     error(token, redefineMsg, redecIdentifier);
 
@@ -718,8 +718,6 @@ void subroutineCall() {
       // find subroutine
       addUndeclar(token, callID.lx);
   } else {
-    // for symbol table purposes (class internal subroutine call)
-
     // find subroutine in THIS class
     if (NULL == findHashRow(callID.lx, classHashTable))
       addUndeclar(callID, classHashTable->name);
@@ -972,6 +970,7 @@ void operand() {
   // identifier [ '.'identifier ] [ '['expr()']' | '('exprList')']
   if (ID == token.tp) {
     // identifier
+    Token callID = PeekNextToken();
     eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
     // [ '.'identifier ]
@@ -984,6 +983,17 @@ void operand() {
 
       // identifier
       eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+      HashRow *class = findHashRow(callID.lx, rootHT());
+      if (NULL == class) {
+        addUndeclar(callID, callID.lx);
+        addUndeclar(token, callID.lx);
+      } else if (NULL == findHashRow(token.lx, class->deeperTable))
+        // find subroutine
+        addUndeclar(token, callID.lx);
+    } else {
+      // find subroutine in THIS class
+      if (NULL == findHashRow(callID.lx, classHashTable))
+        addUndeclar(callID, classHashTable->name);
     }
 
     // [ '['expr()']' | '('exprList')' ]
