@@ -467,22 +467,23 @@ void stmt() {
 }
 
 void varStmt() {
-  Token token;
+  Token token, varType;
 
   // 'var'
   eatTerminal(reswordSet, (char *[]){"var", "\0"}, syntaxError,
               "'var' resword expected");
 
   // type()
-  token = PeekNextToken(); // for error function
+  varType = PeekNextToken(); // for error function
   if (!eatNonTerminal(&type, isType()))
-    error(token, "valid type token", illegalType);
+    error(varType, "valid type token", illegalType);
 
   // identifier
   token = PeekNextToken();
   eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
   if (NULL != findHashRow(token.lx, classHashTable) ||
-      0 == insertHashTable(token, subroutineHashTable, LOCAL_VAR, "var", NULL))
+      0 == insertHashTable(token, subroutineHashTable, LOCAL_VAR, varType.lx,
+                           NULL))
     error(token, redefineMsg, redecIdentifier);
 
   // {, identifier}
@@ -502,9 +503,9 @@ void varStmt() {
     // identifier
     token = PeekNextToken();
     eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
-    if (NULL == findHashRow(token.lx, classHashTable) ||
-        0 ==
-            insertHashTable(token, subroutineHashTable, LOCAL_VAR, "var", NULL))
+    if (NULL != findHashRow(token.lx, classHashTable) ||
+        0 == insertHashTable(token, subroutineHashTable, LOCAL_VAR, varType.lx,
+                             NULL))
       error(token, redefineMsg, redecIdentifier);
 
     // (to stretch whitespace in formatter)
@@ -524,7 +525,7 @@ void letStmt() {
   // identifier
   token = PeekNextToken();
   eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
-  if (NULL == findHashRow(token.lx, classHashTable) ||
+  if (NULL == findHashRow(token.lx, classHashTable) &&
       NULL == findHashRow(token.lx, subroutineHashTable))
     addUndeclar(token, classHashTable->name);
 
