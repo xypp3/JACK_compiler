@@ -16,8 +16,8 @@ typedef struct {
 } LostKids;
 
 LostKids *undeclarList = NULL;
-size_t undeclarListIter;
-size_t undeclarListSize;
+int undeclarListIter;
+int undeclarListSize;
 
 HashTable *rootHT() { return rootHashTable; }
 
@@ -42,13 +42,12 @@ void InitSymbol() {
   assert(rootHashTable == NULL);
   rootHashTable = createHashTable(PROGRAM_SCOPE, "program");
 
-  undeclarListSize = 64;
+  undeclarListSize = 128;
   undeclarList = (LostKids *)malloc(sizeof(LostKids) * undeclarListSize);
-  for (int i = 0; i < 128; i++) {
+  for (int i = 0; i < undeclarListSize; i++) {
     strncpy(undeclarList[i].className, "", 128);
   }
-
-  undeclarListIter = 0;
+  undeclarListIter = -1;
 }
 
 unsigned int hash(char *lexem) {
@@ -91,7 +90,7 @@ int insertHashTable(Token token, HashTable *table, SymbolKind kind, char *type,
 
   row->token = token;
   row->k = kind;
-  row->type = type;
+  strncpy(row->type, type, 128);
   row->deeperTable = deeper;
   row->next = NULL;
   row->vmStackNum = table->kindCounters[kind];
@@ -118,51 +117,66 @@ HashRow *findHashRow(char *lexem, HashTable *table) {
 
 void addUndeclar(Token token, char *className) {
   // check if already in undeclarList
-  for (int i = 0; i < undeclarListIter; i++) {
+  int i = 0;
+  while (i <= undeclarListIter) {
     if ((0 == strncmp(undeclarList[i].token.lx, token.lx, 128)) &&
         ((0 != strncmp(className, "", 128)) ||
          (0 == strncmp(undeclarList[i].className, className, 128))))
       return;
+
+    i++;
   }
+  // for (int i = 0; i <= undeclarListIter; i++) {
+  //   if ((0 == strncmp(undeclarList[i].token.lx, token.lx, 128)) &&
+  //       ((0 != strncmp(className, "", 128)) ||
+  //        (0 == strncmp(undeclarList[i].className, className, 128))))
+  //     return;
+  // }
 
   // check list size
   if (undeclarListSize <= undeclarListIter) {
-    undeclarListSize *= 4;
-    void *err = realloc(undeclarList, undeclarListSize);
+    undeclarListSize += 128;
+    void *err = realloc(undeclarList, sizeof(LostKids) * undeclarListSize);
     if (NULL == err)
       printf("realloc err");
     exit(404);
   }
 
   // add to undeclarList
+  undeclarListIter++;
   undeclarList[undeclarListIter].token = token;
   strncpy(undeclarList[undeclarListIter].className, className, 128);
-  undeclarListIter++;
 }
 
-Token findLostKids() {
+ParserInfo findLostKids() {
   HashRow *class;
+  ParserInfo output;
   for (; 0 <= undeclarListIter; undeclarListIter--) {
     LostKids curr = undeclarList[undeclarListIter];
     if (0 == strncmp(curr.className, "", 128)) {
       // class
-      if (NULL == findHashRow(curr.token.lx, rootHashTable))
-        return curr.token;
+      if (NULL == findHashRow(curr.token.lx, rootHashTable)) {
+        output.tk = curr.token;
+        output.er = undecIdentifier;
+        return output;
+      }
 
     } else {
       // class subroutine
       if (NULL == (class = findHashRow(curr.className, rootHashTable)) ||
-          NULL == findHashRow(curr.token.lx, class->deeperTable))
+          NULL == findHashRow(curr.token.lx, class->deeperTable)) {
         /* TODO: might lead to subr err showing up before class err
          *    cause this can exit early in the undeclarList array
          */
-        return curr.token;
+        output.tk = curr.token;
+        output.er = undecIdentifier;
+        return output;
+      }
     }
   }
 
-  Token t;
-  t.ec = none;
-  return t;
+  output.er = none;
+  return output;
 }
 
 // recursive free table to free entire HashTable graph
@@ -193,18 +207,6 @@ void freeHashTable(HashTable *hashTable) {
 
   free(hashTable);
 }
-
-void StopSymbol() {
-  assert(rootHashTable != NULL);
-  freeHashTable(rootHashTable);
-  free(undeclarList);
-
-  rootHashTable = NULL;
-  undeclarList = NULL;
-}
-
-#ifndef TEST_SYMBOL
-
 void printTable(HashTable *table) {
   printf("HASHTABLE <%p> BEGINNING\n", table);
 
@@ -214,12 +216,28 @@ void printTable(HashTable *table) {
       printf("%d::<%s>::scope<%d>::kind<%d>::type<%s>::deeper<%p>\n", i,
              row->token.lx, table->tableScope, row->k, row->type,
              row->deeperTable);
+      if (row->deeperTable)
+        printTable(row->deeperTable);
       row = row->next;
     }
   }
 
   printf("HASHTABLE END\n");
 }
+
+void StopSymbol() {
+  assert(rootHashTable != NULL);
+
+  // printTable(rootHashTable);
+
+  freeHashTable(rootHashTable);
+  free(undeclarList);
+
+  rootHashTable = NULL;
+  undeclarList = NULL;
+}
+
+#ifndef TEST_SYMBOL
 
 int main(int argc, char **argv) {
 

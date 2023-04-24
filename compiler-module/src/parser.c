@@ -377,6 +377,9 @@ void subroutineDeclar() {
           &subroutineBody,
           (SYMBOL == token.tp && strcmpList(token.lx, (char *[]){"{", "\0"}))))
     error(token, "'{' to start a subroutine body", openBraceExpected);
+
+  // reset subrHashtable pointer
+  subroutineHashTable = NULL;
 }
 
 void paramList() {
@@ -481,9 +484,12 @@ void varStmt() {
   // identifier
   token = PeekNextToken();
   eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
-  if (NULL != findHashRow(token.lx, classHashTable) ||
-      0 == insertHashTable(token, subroutineHashTable, LOCAL_VAR, varType.lx,
-                           NULL))
+  // ACCORDING TO /DECLARED_VAR/A.jack subr var can have the same name as a
+  // class var if (NULL != findHashRow(token.lx, classHashTable) ||
+  //     0 == insertHashTable(token, subroutineHashTable, LOCAL_VAR, varType.lx,
+  //                          NULL))
+  if (0 ==
+      insertHashTable(token, subroutineHashTable, LOCAL_VAR, varType.lx, NULL))
     error(token, redefineMsg, redecIdentifier);
 
   // {, identifier}
@@ -983,17 +989,20 @@ void operand() {
       eatTerminal(symbolSet, (char *[]){".", "\0"}, syntaxError, "'.' symbol");
 
       // identifier
+      token = PeekNextToken();
       eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
       HashRow *class = findHashRow(callID.lx, rootHT());
       if (NULL == class) {
-        addUndeclar(callID, callID.lx);
+        addUndeclar(callID, "");
         addUndeclar(token, callID.lx);
       } else if (NULL == findHashRow(token.lx, class->deeperTable))
         // find subroutine
         addUndeclar(token, callID.lx);
     } else {
-      // find subroutine in THIS class
-      if (NULL == findHashRow(callID.lx, classHashTable))
+      // find subroutine in THIS class or VAR in subroutinHashTable
+      if (NULL == findHashRow(callID.lx, classHashTable) ||
+          NULL == subroutineHashTable ||
+          NULL == findHashRow(callID.lx, subroutineHashTable))
         addUndeclar(callID, classHashTable->name);
     }
 

@@ -41,7 +41,7 @@ typedef struct HashTable_ HashTable;
 typedef struct HashRow_ {
   Token token;
   // SymbolTypes t;
-  char *type;
+  char type[128];
   SymbolKind k;
   // TODO: info (e.g. value of item)
   unsigned int vmStackNum;
@@ -69,6 +69,6 @@ int insertHashTable(Token token, HashTable *table, SymbolKind kind, char *type,
                     HashTable *deeper);
 HashRow *findHashRow(char *lexem, HashTable *table);
 void addUndeclar(Token token, char *className);
-Token findLostKids();
+ParserInfo findLostKids();
 void freeHashTable(HashTable *hashTable);
 void StopSymbol();

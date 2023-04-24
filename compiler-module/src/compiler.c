@@ -56,11 +56,13 @@ ParserInfo compile(char *dir_name) {
 
     p = Parse();
     StopParser();
+
+    if (redecIdentifier == p.er)
+      return p;
   }
 
-  // STAGE
-  if (none != (p.tk = findLostKids()).ec) {
-    p.er = undecIdentifier;
+  // final findLostKids
+  if (none != (p = findLostKids()).er) {
     return p;
   }
 
