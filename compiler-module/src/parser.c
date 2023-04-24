@@ -296,7 +296,7 @@ void type() {
   Token t = PeekNextToken();
   if (ID == t.tp) {
     if (NULL == findHashRow(t.lx, rootHT()))
-      addUndeclar(t, classHashTable->name);
+      addUndeclar(t, "");
   }
 
   eatTerminal(typeSet, typeStart, illegalType, "valid type token");
@@ -716,11 +716,18 @@ void subroutineCall() {
     token = PeekNextToken();
     eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
-    // find class
+    HashRow *row;
     HashRow *class = findHashRow(callID.lx, rootHT());
-    if (NULL == class) {
-      addUndeclar(callID, callID.lx);
+    // find class of object variable
+    if (NULL != (row = findHashRow(callID.lx, classHashTable)))
+      addUndeclar(token, row->type);
+    else if (NULL != subroutineHashTable &&
+             NULL != (row = findHashRow(callID.lx, subroutineHashTable)))
+      addUndeclar(token, row->type);
+    // find class
+    else if (NULL == class) {
       addUndeclar(token, callID.lx);
+      addUndeclar(callID, "");
     } else if (NULL == findHashRow(token.lx, class->deeperTable))
       // find subroutine
       addUndeclar(token, callID.lx);
@@ -991,13 +998,28 @@ void operand() {
       // identifier
       token = PeekNextToken();
       eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+      HashRow *row;
       HashRow *class = findHashRow(callID.lx, rootHT());
-      if (NULL == class) {
-        addUndeclar(callID, "");
+      // find class of object variable
+      if (NULL != (row = findHashRow(callID.lx, classHashTable)))
+        addUndeclar(token, row->type);
+      else if (NULL != subroutineHashTable &&
+               NULL != (row = findHashRow(callID.lx, subroutineHashTable)))
+        addUndeclar(token, row->type);
+      // find class
+      else if (NULL == class) {
         addUndeclar(token, callID.lx);
+        addUndeclar(callID, "");
       } else if (NULL == findHashRow(token.lx, class->deeperTable))
         // find subroutine
         addUndeclar(token, callID.lx);
+      // HashRow *class = findHashRow(callID.lx, rootHT());
+      // if (NULL == class) {
+      //   addUndeclar(callID, "");
+      //   addUndeclar(token, callID.lx);
+      // } else if (NULL == findHashRow(token.lx, class->deeperTable))
+      //   // find subroutine
+      //   addUndeclar(token, callID.lx);
     } else {
       // find subroutine in THIS class or VAR in subroutinHashTable
       if (NULL == findHashRow(callID.lx, classHashTable) ||

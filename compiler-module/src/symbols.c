@@ -48,6 +48,8 @@ void InitSymbol() {
     strncpy(undeclarList[i].className, "", 128);
   }
   undeclarListIter = -1;
+
+  // todo: create all builtin methods and classes
 }
 
 unsigned int hash(char *lexem) {
@@ -153,6 +155,8 @@ ParserInfo findLostKids() {
   ParserInfo output;
   for (; 0 <= undeclarListIter; undeclarListIter--) {
     LostKids curr = undeclarList[undeclarListIter];
+    printf("\n\n::%d::%s::%s::\n\n", undeclarListIter, curr.token.lx,
+           curr.className);
     if (0 == strncmp(curr.className, "", 128)) {
       // class
       if (NULL == findHashRow(curr.token.lx, rootHashTable)) {
@@ -163,6 +167,7 @@ ParserInfo findLostKids() {
 
     } else {
       // class subroutine
+      printf("%p", findHashRow(curr.className, rootHashTable));
       if (NULL == (class = findHashRow(curr.className, rootHashTable)) ||
           NULL == findHashRow(curr.token.lx, class->deeperTable)) {
         /* TODO: might lead to subr err showing up before class err
