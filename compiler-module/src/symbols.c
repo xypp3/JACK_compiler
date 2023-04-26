@@ -37,6 +37,31 @@ HashTable *createHashTable(ScopeLevels scope, char *name) {
   return hashTable;
 }
 
+void initStdLib(char *class, char **subroutines, SymbolKind *subrKinds,
+                char **subrTypes, size_t numberOfSubr) {
+  Token t;
+  HashTable *subrTable;
+  HashTable *classTable = createHashTable(CLASS_SCOPE, class);
+
+  strncpy(t.lx, class, 128);
+  insertHashTable(t, rootHashTable, CLASS, "class", classTable);
+
+  for (size_t i = 0; i < numberOfSubr; i++) {
+    strncpy(t.lx, subroutines[i], 128);
+
+    subrTable = createHashTable(SUBROUTINE_SCOPE, subroutines[i]);
+    insertHashTable(t, classTable, subrKinds[i], subrTypes[i], subrTable);
+    // <<<<<< insert class ref
+    // TODO: FIND ONE LINE SETTING
+    Token implicitArg;
+    implicitArg.tp = ID;
+    strncpy(implicitArg.lx, "this", 128);
+    implicitArg.ec = NoLexErr;
+
+    insertHashTable(implicitArg, subrTable, ARGS, classTable->name, NULL);
+  }
+}
+
 void InitSymbol() {
   // already init exit
   assert(rootHashTable == NULL);
@@ -50,6 +75,32 @@ void InitSymbol() {
   undeclarListIter = -1;
 
   // todo: create all builtin methods and classes
+  initStdLib("Math", (char *[]){"multiply", "abs"},
+             (SymbolKind[]){STATIC, METHOD}, (char *[]){"int", "int"}, 2);
+  initStdLib("Output",
+             (char *[]){"printInt", "printString", "println", "moveCursor"},
+             (SymbolKind[]){STATIC, STATIC, STATIC, STATIC},
+             (char *[]){"void", "void", "void", "void"}, 4);
+  initStdLib("Keyboard", (char *[]){"keyPressed"}, (SymbolKind[]){METHOD},
+             (char *[]){"char"}, 1);
+  initStdLib("String",
+             (char *[]){"new", "newLine", "doubleQuote", "backSpace",
+                        "intValue", "eraseLastChar", "setCharAt", "charAt",
+                        "length", "appendChar", "dispose", "setInt"},
+             (SymbolKind[]){METHOD, METHOD, METHOD, METHOD, METHOD, METHOD,
+                            METHOD, METHOD, METHOD, METHOD, METHOD, METHOD},
+             (char *[]){"void", "char", "char", "char", "int", "void", "void",
+                        "char", "int", "void", "void", "void"},
+             12);
+  initStdLib("Array", (char *[]){"new"}, (SymbolKind[]){STATIC},
+             (char *[]){"Array"}, 1);
+  initStdLib("Sys", (char *[]){"wait"}, (SymbolKind[]){STATIC},
+             (char *[]){"void"}, 1);
+  initStdLib("Screen", (char *[]){"drawRectangle", "setColor", "clearScreen"},
+             (SymbolKind[]){METHOD, METHOD, METHOD},
+             (char *[]){"void", "void", "void"}, 3);
+  initStdLib("Memory", (char *[]){"deAlloc"}, (SymbolKind[]){STATIC},
+             (char *[]){"void"}, 1);
 }
 
 unsigned int hash(char *lexem) {
@@ -155,8 +206,8 @@ ParserInfo findLostKids() {
   ParserInfo output;
   for (; 0 <= undeclarListIter; undeclarListIter--) {
     LostKids curr = undeclarList[undeclarListIter];
-    printf("\n\n::%d::%s::%s::\n\n", undeclarListIter, curr.token.lx,
-           curr.className);
+    // printf("\n\n::%d::%s::%s::\n\n", undeclarListIter, curr.token.lx,
+    // curr.className);
     if (0 == strncmp(curr.className, "", 128)) {
       // class
       if (NULL == findHashRow(curr.token.lx, rootHashTable)) {
@@ -167,7 +218,7 @@ ParserInfo findLostKids() {
 
     } else {
       // class subroutine
-      printf("%p", findHashRow(curr.className, rootHashTable));
+      // printf("%p", findHashRow(curr.className, rootHashTable));
       if (NULL == (class = findHashRow(curr.className, rootHashTable)) ||
           NULL == findHashRow(curr.token.lx, class->deeperTable)) {
         /* TODO: might lead to subr err showing up before class err

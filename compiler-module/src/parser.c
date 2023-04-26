@@ -509,7 +509,7 @@ void varStmt() {
     // identifier
     token = PeekNextToken();
     eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
-    if (NULL != findHashRow(token.lx, classHashTable) ||
+    if (NULL == findHashRow(token.lx, classHashTable) &&
         0 == insertHashTable(token, subroutineHashTable, LOCAL_VAR, varType.lx,
                              NULL))
       error(token, redefineMsg, redecIdentifier);
@@ -998,6 +998,7 @@ void operand() {
       // identifier
       token = PeekNextToken();
       eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+
       HashRow *row;
       HashRow *class = findHashRow(callID.lx, rootHT());
       // find class of object variable
@@ -1013,19 +1014,13 @@ void operand() {
       } else if (NULL == findHashRow(token.lx, class->deeperTable))
         // find subroutine
         addUndeclar(token, callID.lx);
-      // HashRow *class = findHashRow(callID.lx, rootHT());
-      // if (NULL == class) {
-      //   addUndeclar(callID, "");
-      //   addUndeclar(token, callID.lx);
-      // } else if (NULL == findHashRow(token.lx, class->deeperTable))
-      //   // find subroutine
-      //   addUndeclar(token, callID.lx);
     } else {
-      // find subroutine in THIS class or VAR in subroutinHashTable
-      if (NULL == findHashRow(callID.lx, classHashTable) ||
-          NULL == subroutineHashTable ||
-          NULL == findHashRow(callID.lx, subroutineHashTable))
-        addUndeclar(callID, classHashTable->name);
+      // find VAR in THIS class or VAR in subroutinHashTable
+      HashTable *t;
+      if (NULL == findHashRow(callID.lx, (t = classHashTable)) &&
+          (NULL == subroutineHashTable ||
+           NULL == findHashRow(callID.lx, (t = subroutineHashTable))))
+        addUndeclar(callID, t->name);
     }
 
     // [ '['expr()']' | '('exprList')' ]
