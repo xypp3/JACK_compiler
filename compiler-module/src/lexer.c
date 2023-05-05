@@ -459,64 +459,64 @@ int StopLexer() {
 
 // do not remove the next line
 #ifndef TEST
-// NOTE: main() NOT tested by autograder
-int main(int argc, char **argv) {
-
-  if (argc != 2 && argc != 3) {
-    printf("Usage: lexer \"filename\"");
-    return FALSE;
-  }
-
-  int is_not_err = InitLexer(argv[1]);
-  if (is_not_err == FALSE) {
-    printf("init err");
-    return FALSE;
-  }
-
-  // init output file
-  FILE *output_file;
-  char output_filename[50];
-  strcat(output_filename, argv[1]);
-  strcat(output_filename, "_tokens_mine.txt");
-
-  if ((output_file = fopen(output_filename, "w")) == NULL) {
-    printf("Error! opening file");
-
-    fclose(output_file);
-    // Program exits if the file pointer returns NULL.
-    return FALSE;
-  }
-
-  PeekNextToken();
-  PeekNextToken();
-  Token p = PeekNextToken();
-  Token t = GetNextToken();
-  // printf("< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx, enumToStr(t.tp));
-  if (argc == 3 && strcmp(argv[2], "peek") == 0) {
-    fprintf(output_file, "< %s, %d, %s, %s >\n", p.fl, p.ln, p.lx,
-            enumToStr(p.tp));
-  } else {
-    fprintf(output_file, "< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx,
-            enumToStr(t.tp));
-  }
-  while (t.tp != EOFile && t.tp != ERR) {
-    PeekNextToken();
-    PeekNextToken();
-    p = PeekNextToken();
-    t = GetNextToken();
-    if (argc == 3 && strcmp(argv[2], "peek") == 0) {
-      fprintf(output_file, "< %s, %d, %s, %s >\n", p.fl, p.ln, p.lx,
-              enumToStr(p.tp));
-    } else {
-      fprintf(output_file, "< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx,
-              enumToStr(t.tp));
-    }
-  }
-
-  StopLexer();
-
-  fclose(output_file);
-  return TRUE;
-}
-// do not remove the next line
+// // NOTE: main() NOT tested by autograder
+// int main(int argc, char **argv) {
+//
+//   if (argc != 2 && argc != 3) {
+//     printf("Usage: lexer \"filename\"");
+//     return FALSE;
+//   }
+//
+//   int is_not_err = InitLexer(argv[1]);
+//   if (is_not_err == FALSE) {
+//     printf("init err");
+//     return FALSE;
+//   }
+//
+//   // init output file
+//   FILE *output_file;
+//   char output_filename[50];
+//   strcat(output_filename, argv[1]);
+//   strcat(output_filename, "_tokens_mine.txt");
+//
+//   if ((output_file = fopen(output_filename, "w")) == NULL) {
+//     printf("Error! opening file");
+//
+//     fclose(output_file);
+//     // Program exits if the file pointer returns NULL.
+//     return FALSE;
+//   }
+//
+//   PeekNextToken();
+//   PeekNextToken();
+//   Token p = PeekNextToken();
+//   Token t = GetNextToken();
+//   // printf("< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx, enumToStr(t.tp));
+//   if (argc == 3 && strcmp(argv[2], "peek") == 0) {
+//     fprintf(output_file, "< %s, %d, %s, %s >\n", p.fl, p.ln, p.lx,
+//             enumToStr(p.tp));
+//   } else {
+//     fprintf(output_file, "< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx,
+//             enumToStr(t.tp));
+//   }
+//   while (t.tp != EOFile && t.tp != ERR) {
+//     PeekNextToken();
+//     PeekNextToken();
+//     p = PeekNextToken();
+//     t = GetNextToken();
+//     if (argc == 3 && strcmp(argv[2], "peek") == 0) {
+//       fprintf(output_file, "< %s, %d, %s, %s >\n", p.fl, p.ln, p.lx,
+//               enumToStr(p.tp));
+//     } else {
+//       fprintf(output_file, "< %s, %d, %s, %s >\n", t.fl, t.ln, t.lx,
+//               enumToStr(t.tp));
+//     }
+//   }
+//
+//   StopLexer();
+//
+//   fclose(output_file);
+//   return TRUE;
+// }
+// // do not remove the next line
 #endif

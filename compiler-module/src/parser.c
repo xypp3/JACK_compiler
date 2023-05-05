@@ -1,12 +1,3 @@
-/* TODOs for SYMBOL TABLE
- * DONE type() :: undeclar
- * DONE varStmt() :: undeclar
- * DONE letStmt() :: redeclar
- * DONE subroutineCall() :: undeclar (var OR class OR subr OR diff class's
- *  subr!!!)
- * DONE operand() :: undeclar (var OR class OR subr OR diff class's subr!!!)
- */
-
 #include <setjmp.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -75,6 +66,44 @@ HashTable *classHashTable = NULL;
 HashTable *subroutineHashTable = NULL;
 char *redefineMsg = "redeclaration of identifier";
 char *undefineMsg = "undeclared identifier";
+
+// code gen data
+char *vmComm[17] = {"add",  "sub",     "neg",      "eq",   "gt",    "lt",
+                    "and",  "or",      "not",      "push", "pop",   "label",
+                    "goto", "if-goto", "function", "call", "return"};
+typedef enum {
+  ADD,
+  SUB,
+  NEG,
+  EQ,
+  GT, // >
+  LT, // <
+  AND,
+  OR,
+  NOT, // ~
+  PUSH,
+  POP,
+  LABEL,
+  GOTO,
+  IFGOTO,
+  FUNC,
+  CALL,
+  RETURN
+} vmC;
+
+char *vmMem[9] = {"static",     "argument",   "local", "this", "that",
+                  "pointer[0]", "pointer[1]", "temp",  "const"};
+typedef enum {
+  STATIC_MEM,
+  ARG_MEM,
+  LOCAL_MEM,
+  THIS_MEM,
+  THAT_MEM,
+  PTR_THIS,
+  PTR_THAT,
+  TEMP_MEM,
+  CONST_MEM
+} vmMemEnum;
 
 /**********************************************************************
  **********************************************************************
@@ -999,6 +1028,7 @@ void operand() {
       token = PeekNextToken();
       eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
+      // HASH TABLE INSERTION/ CHECKING
       HashRow *row;
       HashRow *class = findHashRow(callID.lx, rootHT());
       // find class of object variable
@@ -1015,6 +1045,7 @@ void operand() {
         // find subroutine
         addUndeclar(token, callID.lx);
     } else {
+      // HASH TABLE INSERTION/ CHECKING
       // find VAR in THIS class or VAR in subroutinHashTable
       HashTable *t;
       if (NULL == findHashRow(callID.lx, (t = classHashTable)) &&
@@ -1135,17 +1166,17 @@ int StopParser() {
 }
 
 #ifndef TEST_PARSER
-int main(int argc, char **argv) {
-  if (argc != 2) {
-    printf("usage: ./parser filename.jack");
-    return 1;
-  }
-
-  InitParser(argv[1]);
-  Parse();
-  StopParser();
-
-  return 1;
-}
-
+// int main(int argc, char **argv) {
+//   if (argc != 2) {
+//     printf("usage: ./parser filename.jack");
+//     return 1;
+//   }
+//
+//   InitParser(argv[1]);
+//   Parse();
+//   StopParser();
+//
+//   return 1;
+// }
+//
 #endif

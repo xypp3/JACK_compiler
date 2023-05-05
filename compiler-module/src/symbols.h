@@ -2,6 +2,8 @@
 #define SYMBOLS_H
 #endif
 
+#define TEST_COMPILER // uncomment to run the compiler autograder
+
 #include "lexer.h"
 #include "parser.h"
 

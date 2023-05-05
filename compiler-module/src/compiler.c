@@ -78,10 +78,10 @@ int StopCompiler() {
 }
 
 #ifndef TEST_COMPILER
-int main() {
-  InitCompiler();
-  compile("/home/xypp3/jack_compiler/compiler-module/data/Pong");
-  StopCompiler();
-  return 1;
-}
+// int main() {
+//   InitCompiler();
+//   compile("/home/xypp3/jack_compiler/compiler-module/data/Pong");
+//   StopCompiler();
+//   return 1;
+// }
 #endif

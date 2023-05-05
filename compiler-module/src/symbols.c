@@ -1,6 +1,9 @@
 #include "symbols.h"
 
+#ifndef TEST_COMPILER
 #include "assert.h"
+#endif
+
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
@@ -64,7 +67,11 @@ void initStdLib(char *class, char **subroutines, SymbolKind *subrKinds,
 
 void InitSymbol() {
   // already init exit
+
+#ifndef TEST_COMPILER
   assert(rootHashTable == NULL);
+#endif
+
   rootHashTable = createHashTable(PROGRAM_SCOPE, "program");
 
   undeclarListSize = 128;
@@ -74,7 +81,6 @@ void InitSymbol() {
   }
   undeclarListIter = -1;
 
-  // todo: create all builtin methods and classes
   initStdLib("Math", (char *[]){"multiply", "abs"},
              (SymbolKind[]){STATIC, METHOD}, (char *[]){"int", "int"}, 2);
   initStdLib("Output",
@@ -114,7 +120,9 @@ unsigned int hash(char *lexem) {
 int insertHashTable(Token token, HashTable *table, SymbolKind kind, char *type,
                     HashTable *deeper) {
 
+#ifndef TEST_COMPILER
   assert(NULL != table && NULL != type);
+#endif
 
   unsigned int index = hash(token.lx);
   HashRow *row = table->allRows[index];
@@ -155,7 +163,9 @@ int insertHashTable(Token token, HashTable *table, SymbolKind kind, char *type,
 // used to be (Token token) instead of (char *lexem)
 //    is there a reason for it to be otherwise?
 HashRow *findHashRow(char *lexem, HashTable *table) {
+#ifndef TEST_COMPILER
   assert(NULL != lexem && NULL != table);
+#endif
 
   HashRow *row = table->allRows[hash(lexem)];
   while (row != NULL) {
@@ -179,12 +189,6 @@ void addUndeclar(Token token, char *className) {
 
     i++;
   }
-  // for (int i = 0; i <= undeclarListIter; i++) {
-  //   if ((0 == strncmp(undeclarList[i].token.lx, token.lx, 128)) &&
-  //       ((0 != strncmp(className, "", 128)) ||
-  //        (0 == strncmp(undeclarList[i].className, className, 128))))
-  //     return;
-  // }
 
   // check list size
   if (undeclarListSize <= undeclarListIter) {
@@ -206,8 +210,6 @@ ParserInfo findLostKids() {
   ParserInfo output;
   for (; 0 <= undeclarListIter; undeclarListIter--) {
     LostKids curr = undeclarList[undeclarListIter];
-    // printf("\n\n::%d::%s::%s::\n\n", undeclarListIter, curr.token.lx,
-    // curr.className);
     if (0 == strncmp(curr.className, "", 128)) {
       // class
       if (NULL == findHashRow(curr.token.lx, rootHashTable)) {
@@ -218,7 +220,6 @@ ParserInfo findLostKids() {
 
     } else {
       // class subroutine
-      // printf("%p", findHashRow(curr.className, rootHashTable));
       if (NULL == (class = findHashRow(curr.className, rootHashTable)) ||
           NULL == findHashRow(curr.token.lx, class->deeperTable)) {
         /* TODO: might lead to subr err showing up before class err
@@ -282,7 +283,9 @@ void printTable(HashTable *table) {
 }
 
 void StopSymbol() {
+#ifndef TEST_COMPILER
   assert(rootHashTable != NULL);
+#endif
 
   // printTable(rootHashTable);
 
@@ -293,31 +296,29 @@ void StopSymbol() {
   undeclarList = NULL;
 }
 
-#ifndef TEST_SYMBOL
-
-int main(int argc, char **argv) {
-
-  // reset test
-  InitSymbol();
-  Token t;
-  strncpy(t.lx, "hi", 128);
-
-  insertHashTable(t, rootHashTable, CLASS, "class", NULL);
-  HashTable *class;
-  class = createHashTable(CLASS_SCOPE, "main");
-  strncpy(t.lx, "main", 128);
-  insertHashTable(t, rootHashTable, CLASS, "class", class);
-  printTable(rootHashTable);
-
-  StopSymbol();
-  InitSymbol();
-
-  insertHashTable(t, rootHashTable, CLASS, "class", NULL);
-  printf("%s done\n", rootHashTable->allRows[hash("hi")]->token.lx);
-
-  StopSymbol();
-
-  return 0;
-}
-
+#ifndef TEST_COMPILER
+// int main(int argc, char **argv) {
+//
+//   // reset test
+//   InitSymbol();
+//   Token t;
+//   strncpy(t.lx, "hi", 128);
+//
+//   insertHashTable(t, rootHashTable, CLASS, "class", NULL);
+//   HashTable *class;
+//   class = createHashTable(CLASS_SCOPE, "main");
+//   strncpy(t.lx, "main", 128);
+//   insertHashTable(t, rootHashTable, CLASS, "class", class);
+//   printTable(rootHashTable);
+//
+//   StopSymbol();
+//   InitSymbol();
+//
+//   insertHashTable(t, rootHashTable, CLASS, "class", NULL);
+//   printf("%s done\n", rootHashTable->allRows[hash("hi")]->token.lx);
+//
+//   StopSymbol();
+//
+//   return 0;
+// }
 #endif
