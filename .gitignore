@@ -1,3 +1,4 @@
 ./parser-module/parser_autograder/*
-./compiler-module/SymbolTableSelfGrader/*
+./compiler-module/SymbolTableSelfGrader/
+./compiler-module/Code-Generation-Self-Grader/
 build/
