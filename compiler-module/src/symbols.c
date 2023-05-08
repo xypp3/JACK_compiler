@@ -1,9 +1,6 @@
 #include "symbols.h"
 
-#ifndef TEST_COMPILER
 #include "assert.h"
-#endif
-
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
@@ -40,37 +37,9 @@ HashTable *createHashTable(ScopeLevels scope, char *name) {
   return hashTable;
 }
 
-void initStdLib(char *class, char **subroutines, SymbolKind *subrKinds,
-                char **subrTypes, size_t numberOfSubr) {
-  Token t;
-  HashTable *subrTable;
-  HashTable *classTable = createHashTable(CLASS_SCOPE, class);
-
-  strncpy(t.lx, class, 128);
-  insertHashTable(t, rootHashTable, CLASS, "class", classTable);
-
-  for (size_t i = 0; i < numberOfSubr; i++) {
-    strncpy(t.lx, subroutines[i], 128);
-
-    subrTable = createHashTable(SUBROUTINE_SCOPE, subroutines[i]);
-    insertHashTable(t, classTable, subrKinds[i], subrTypes[i], subrTable);
-    // <<<<<< insert class ref
-    // TODO: FIND ONE LINE SETTING
-    Token implicitArg;
-    implicitArg.tp = ID;
-    strncpy(implicitArg.lx, "this", 128);
-    implicitArg.ec = NoLexErr;
-
-    insertHashTable(implicitArg, subrTable, ARGS, classTable->name, NULL);
-  }
-}
-
 void InitSymbol() {
   // already init exit
-
-#ifndef TEST_COMPILER
   assert(rootHashTable == NULL);
-#endif
 
   rootHashTable = createHashTable(PROGRAM_SCOPE, "program");
 
@@ -80,33 +49,6 @@ void InitSymbol() {
     strncpy(undeclarList[i].className, "", 128);
   }
   undeclarListIter = -1;
-
-  initStdLib("Math", (char *[]){"multiply", "abs"},
-             (SymbolKind[]){STATIC, METHOD}, (char *[]){"int", "int"}, 2);
-  initStdLib("Output",
-             (char *[]){"printInt", "printString", "println", "moveCursor"},
-             (SymbolKind[]){STATIC, STATIC, STATIC, STATIC},
-             (char *[]){"void", "void", "void", "void"}, 4);
-  initStdLib("Keyboard", (char *[]){"keyPressed"}, (SymbolKind[]){METHOD},
-             (char *[]){"char"}, 1);
-  initStdLib("String",
-             (char *[]){"new", "newLine", "doubleQuote", "backSpace",
-                        "intValue", "eraseLastChar", "setCharAt", "charAt",
-                        "length", "appendChar", "dispose", "setInt"},
-             (SymbolKind[]){METHOD, METHOD, METHOD, METHOD, METHOD, METHOD,
-                            METHOD, METHOD, METHOD, METHOD, METHOD, METHOD},
-             (char *[]){"void", "char", "char", "char", "int", "void", "void",
-                        "char", "int", "void", "void", "void"},
-             12);
-  initStdLib("Array", (char *[]){"new"}, (SymbolKind[]){STATIC},
-             (char *[]){"Array"}, 1);
-  initStdLib("Sys", (char *[]){"wait"}, (SymbolKind[]){STATIC},
-             (char *[]){"void"}, 1);
-  initStdLib("Screen", (char *[]){"drawRectangle", "setColor", "clearScreen"},
-             (SymbolKind[]){METHOD, METHOD, METHOD},
-             (char *[]){"void", "void", "void"}, 3);
-  initStdLib("Memory", (char *[]){"deAlloc"}, (SymbolKind[]){STATIC},
-             (char *[]){"void"}, 1);
 }
 
 unsigned int hash(char *lexem) {
@@ -120,9 +62,7 @@ unsigned int hash(char *lexem) {
 int insertHashTable(Token token, HashTable *table, SymbolKind kind, char *type,
                     HashTable *deeper) {
 
-#ifndef TEST_COMPILER
   assert(NULL != table && NULL != type);
-#endif
 
   unsigned int index = hash(token.lx);
   HashRow *row = table->allRows[index];
@@ -163,9 +103,7 @@ int insertHashTable(Token token, HashTable *table, SymbolKind kind, char *type,
 // used to be (Token token) instead of (char *lexem)
 //    is there a reason for it to be otherwise?
 HashRow *findHashRow(char *lexem, HashTable *table) {
-#ifndef TEST_COMPILER
   assert(NULL != lexem && NULL != table);
-#endif
 
   HashRow *row = table->allRows[hash(lexem)];
   while (row != NULL) {
@@ -283,9 +221,7 @@ void printTable(HashTable *table) {
 }
 
 void StopSymbol() {
-#ifndef TEST_COMPILER
   assert(rootHashTable != NULL);
-#endif
 
   // printTable(rootHashTable);
 

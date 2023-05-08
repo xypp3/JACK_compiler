@@ -28,15 +28,6 @@ typedef enum {
   ENUM_SIZE
 } SymbolKind;
 
-typedef enum {
-  INT_TYPE,
-  CHAR_TYPE,
-  BOOLEAN_TYPE,
-  STRING_TYPE,
-  VOID_TYPE,
-  CLASS_TYPE, // TODO: find a way to validate if class init
-} SymbolTypes;
-
 typedef struct HashRow_ HashRow;
 typedef struct HashTable_ HashTable;
 

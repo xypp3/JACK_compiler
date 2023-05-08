@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "compiler.h"
 #include "lexer.h"
 #include "parser.h"
 #include "symbols.h"
@@ -105,6 +106,7 @@ typedef enum {
   CONST_MEM
 } vmMemEnum;
 
+FILE *vmFptr = NULL;
 /**********************************************************************
  **********************************************************************
  **********************************************************************
@@ -238,7 +240,8 @@ void classDeclar() {
       eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
   classHashTable = createHashTable(CLASS_SCOPE, classID.lx);
-  if (!insertHashTable(classID, rootHT(), CLASS, "class", classHashTable))
+  if (!isCodeGenning() &&
+      !insertHashTable(classID, rootHT(), CLASS, "class", classHashTable))
     error(classID, redefineMsg, redecIdentifier);
 
   // '{'
@@ -292,7 +295,8 @@ void classVarDeclar() {
 
   // identifier
   Token id = eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
-  if (!insertHashTable(id, classHashTable, statFielKind, typeID.lx, NULL))
+  if (!isCodeGenning() &&
+      !insertHashTable(id, classHashTable, statFielKind, typeID.lx, NULL))
     error(id, redefineMsg, redecIdentifier);
 
   // {, identifier}
@@ -311,7 +315,8 @@ void classVarDeclar() {
 
     // identifier
     Token id = eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
-    if (!insertHashTable(id, classHashTable, statFielKind, typeID.lx, NULL))
+    if (!isCodeGenning() &&
+        !insertHashTable(id, classHashTable, statFielKind, typeID.lx, NULL))
       error(id, redefineMsg, redecIdentifier);
 
     // (to stretch whitespace in formatter)
@@ -364,8 +369,8 @@ void subroutineDeclar() {
   // symbol table
   subroutineHashTable = NULL;
   subroutineHashTable = createHashTable(SUBROUTINE_SCOPE, id.lx);
-  if (!insertHashTable(id, classHashTable, subKind, token.lx,
-                       subroutineHashTable))
+  if (!isCodeGenning() && !insertHashTable(id, classHashTable, subKind,
+                                           token.lx, subroutineHashTable))
     error(id, redefineMsg, redecIdentifier);
   // <<<<<< insert class ref
   // TODO: FIND ONE LINE SETTING
@@ -422,7 +427,8 @@ void paramList() {
   // identifier
   Token idToken =
       eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
-  if (!insertHashTable(idToken, subroutineHashTable, ARGS, typeToken.lx, NULL))
+  if (!isCodeGenning() &&
+      !insertHashTable(idToken, subroutineHashTable, ARGS, typeToken.lx, NULL))
     error(idToken, redefineMsg, redecIdentifier);
 
   // {',' type() identifier}
@@ -446,8 +452,8 @@ void paramList() {
 
     // identifier
     idToken = eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
-    if (!insertHashTable(idToken, subroutineHashTable, ARGS, typeToken.lx,
-                         NULL))
+    if (!isCodeGenning() && !insertHashTable(idToken, subroutineHashTable, ARGS,
+                                             typeToken.lx, NULL))
       error(idToken, redefineMsg, redecIdentifier);
   }
 }
@@ -514,11 +520,8 @@ void varStmt() {
   token = PeekNextToken();
   eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
   // ACCORDING TO /DECLARED_VAR/A.jack subr var can have the same name as a
-  // class var if (NULL != findHashRow(token.lx, classHashTable) ||
-  //     0 == insertHashTable(token, subroutineHashTable, LOCAL_VAR, varType.lx,
-  //                          NULL))
-  if (0 ==
-      insertHashTable(token, subroutineHashTable, LOCAL_VAR, varType.lx, NULL))
+  if (!isCodeGenning() && 0 == insertHashTable(token, subroutineHashTable,
+                                               LOCAL_VAR, varType.lx, NULL))
     error(token, redefineMsg, redecIdentifier);
 
   // {, identifier}
@@ -538,7 +541,7 @@ void varStmt() {
     // identifier
     token = PeekNextToken();
     eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
-    if (NULL == findHashRow(token.lx, classHashTable) &&
+    if (!isCodeGenning() && NULL == findHashRow(token.lx, classHashTable) &&
         0 == insertHashTable(token, subroutineHashTable, LOCAL_VAR, varType.lx,
                              NULL))
       error(token, redefineMsg, redecIdentifier);
@@ -1143,7 +1146,16 @@ void operand() {
  **********************************************************************
  */
 
-int InitParser(char *file_name) { return InitLexer(file_name); }
+int InitParser(char *file_name) {
+
+  if (isCodeGenning())
+    if (NULL == (vmFptr = fopen(getCodeGenFile(), "w")))
+      return 0;
+  if (NULL != vmFptr)
+    fprintf(vmFptr, "hellooooooooo\n");
+
+  return InitLexer(file_name);
+}
 
 ParserInfo Parse() {
   ParserInfo pi;
@@ -1162,6 +1174,13 @@ ParserInfo Parse() {
 int StopParser() {
   // reset ptr but keep hashtable
   classHashTable = NULL;
+  subroutineHashTable = NULL;
+
+  if (NULL != vmFptr) {
+    fclose(vmFptr);
+    vmFptr = NULL;
+  }
+
   return StopLexer();
 }
 
