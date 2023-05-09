@@ -1101,10 +1101,27 @@ void operand() {
   if (ERR == token.tp)
     error(token, "valid lexical token", lexerErr);
 
-  // todo: code gen for string and int separately
-  if (INT == token.tp || STRING == token.tp) {
-    eatTerminal((TokenTypeSet){2, (TokenType[]){INT, STRING}}, (char *[]){"\0"},
-                syntaxError, "int or string literals");
+  if (INT == token.tp) {
+    token = eatTerminal((TokenTypeSet){1, (TokenType[]){INT}}, (char *[]){"\0"},
+                        syntaxError, "int literal");
+
+    fprintf(vmFptr, "%s %s %s\n", vmComm[PUSH], vmMem[CONST_MEM], token.lx);
+    return;
+  }
+
+  if (STRING == token.tp) {
+    token = eatTerminal((TokenTypeSet){1, (TokenType[]){STRING}},
+                        (char *[]){"\0"}, syntaxError, "string literal");
+
+    fprintf(vmFptr, "%s %s %d\n", vmComm[PUSH], vmMem[CONST_MEM],
+            (int)strlen(token.lx));
+    fprintf(vmFptr, "call String.new 1\n");
+    for (int i = 0; i < strlen(token.lx); i++) {
+      fprintf(vmFptr, "%s %s %d\n", vmComm[PUSH], vmMem[CONST_MEM],
+              token.lx[i]);
+      fprintf(vmFptr, "call String.appendChar 2\n");
+    }
+
     return;
   }
 
@@ -1237,10 +1254,23 @@ void operand() {
     return;
   }
 
-  // todo: code gen
   //  'true' | 'false' | 'null' | 'this'
   char *operandConst[] = {"true", "false", "null", "this", "\0"};
-  eatTerminal(reswordSet, operandConst, syntaxError, "operand value");
+  Token consts =
+      eatTerminal(reswordSet, operandConst, syntaxError, "operand value");
+
+  if (isCodeGenning()) {
+    if (!strncmp(consts.lx, "true", 5)) {
+      fprintf(vmFptr, "%s %s 1\n", vmComm[PUSH], vmMem[CONST_MEM]);
+      fprintf(vmFptr, "%s\n", vmComm[NEG]);
+    } else if (!strncmp(consts.lx, "this", 5)) {
+      // todo: code gen
+    }
+    // false of null
+    else {
+      fprintf(vmFptr, "%s %s 0\n", vmComm[PUSH], vmMem[CONST_MEM]);
+    }
+  }
 }
 
 /**********************************************************************
