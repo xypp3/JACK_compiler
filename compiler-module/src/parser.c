@@ -1105,21 +1105,24 @@ void operand() {
     token = eatTerminal((TokenTypeSet){1, (TokenType[]){INT}}, (char *[]){"\0"},
                         syntaxError, "int literal");
 
-    fprintf(vmFptr, "%s %s %s\n", vmComm[PUSH], vmMem[CONST_MEM], token.lx);
+    if (isCodeGenning())
+      fprintf(vmFptr, "%s %s %s\n", vmComm[PUSH], vmMem[CONST_MEM], token.lx);
+
     return;
   }
 
   if (STRING == token.tp) {
     token = eatTerminal((TokenTypeSet){1, (TokenType[]){STRING}},
                         (char *[]){"\0"}, syntaxError, "string literal");
-
-    fprintf(vmFptr, "%s %s %d\n", vmComm[PUSH], vmMem[CONST_MEM],
-            (int)strlen(token.lx));
-    fprintf(vmFptr, "call String.new 1\n");
-    for (int i = 0; i < strlen(token.lx); i++) {
+    if (isCodeGenning()) {
       fprintf(vmFptr, "%s %s %d\n", vmComm[PUSH], vmMem[CONST_MEM],
-              token.lx[i]);
-      fprintf(vmFptr, "call String.appendChar 2\n");
+              (int)strlen(token.lx));
+      fprintf(vmFptr, "call String.new 1\n");
+      for (int i = 0; i < strlen(token.lx); i++) {
+        fprintf(vmFptr, "%s %s %d\n", vmComm[PUSH], vmMem[CONST_MEM],
+                token.lx[i]);
+        fprintf(vmFptr, "call String.appendChar 2\n");
+      }
     }
 
     return;
