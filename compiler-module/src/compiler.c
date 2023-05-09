@@ -16,6 +16,7 @@ Email:
 Date Work Commenced:
 *************************************************************************/
 #include <dirent.h>
+#include <glob.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -61,25 +62,46 @@ ParserInfo compile(char *dir_name) {
   ParserInfo p;
   p.er = none;
 
-  struct dirent *file;
-  DIR *dir;
+  //
+  // char std_dir_name[400] = {0};
+  // strncpy(std_dir_name, dir_name, findLastIndexOf(dir_name, '/'));
+  //
+  // // open std dir
+  // if (NULL == (dir = opendir(std_dir_name))) {
+  //   printf("directory %s, does not exist", std_dir_name);
+  //   p.er = syntaxError;
+  //   return p;
+  // }
+  //
+  // // reading standard libraries
+  // while (NULL != (file = readdir(dir))) {
+  //   if (NULL == strstr(file->d_name, ".jack"))
+  //     continue;
+  //
+  //   snprintf(parseFile, FILE_PATH_LEN, "%s/%s", std_dir_name, file->d_name);
+  //
+  //   if (0 == InitParser(parseFile)) {
+  //     p.er = lexerErr;
+  //     return p;
+  //   }
+  //
+  //   p = Parse();
+  //   StopParser();
+  //
+  //   if (p.er != none)
+  //     return p;
+  // }
+  // closedir(dir);
+  glob_t globbuf;
 
-  char std_dir_name[400] = {0};
-  strncpy(std_dir_name, dir_name, findLastIndexOf(dir_name, '/'));
-
-  // open std dir
-  if (NULL == (dir = opendir(std_dir_name))) {
-    printf("directory %s, does not exist", std_dir_name);
-    p.er = syntaxError;
+  if (glob("*.jack", 0, NULL, &globbuf) != 0) {
+    perror("glob");
     return p;
   }
 
-  // reading standard libraries
-  while (NULL != (file = readdir(dir))) {
-    if (NULL == strstr(file->d_name, ".jack"))
-      continue;
-
-    snprintf(parseFile, FILE_PATH_LEN, "%s/%s", std_dir_name, file->d_name);
+  // parse core lib
+  for (int i = 0; i < globbuf.gl_pathc; i++) {
+    snprintf(parseFile, FILE_PATH_LEN, "%s", globbuf.gl_pathv[i]);
 
     if (0 == InitParser(parseFile)) {
       p.er = lexerErr;
@@ -89,11 +111,12 @@ ParserInfo compile(char *dir_name) {
     p = Parse();
     StopParser();
 
-    if (p.er != none)
+    if (none != p.er)
       return p;
   }
-  closedir(dir);
 
+  struct dirent *file;
+  DIR *dir;
   // open project dir
   if (NULL == (dir = opendir(dir_name))) {
     printf("directory %s, does not exist", dir_name);
