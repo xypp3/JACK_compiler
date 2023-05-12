@@ -108,6 +108,10 @@ typedef enum {
 } vmMemEnum;
 
 FILE *vmFptr = NULL;
+int condLableIter = -1;
+int loopLableIter = -1;
+int isArray = 0;
+int isMethod = 0;
 /**********************************************************************
  **********************************************************************
  **********************************************************************
@@ -116,6 +120,36 @@ FILE *vmFptr = NULL;
  **********************************************************************
  **********************************************************************
  */
+int commAtVarLocation(vmC action, char *lexem) {
+  HashRow *val;
+  if (NULL != (val = findHashRow(lexem, classHashTable)) ||
+      (NULL != subroutineHashTable &&
+       NULL != (val = findHashRow(lexem, subroutineHashTable)))) {
+    switch (val->k) {
+    case FIELD:
+      fprintf(vmFptr, "%s %s %d\n", vmComm[action], vmMem[THIS_MEM],
+              val->vmStackNum);
+      break;
+    case STATIC:
+      fprintf(vmFptr, "%s %s %d\n", vmComm[action], vmMem[STATIC_MEM],
+              val->vmStackNum);
+      break;
+    case ARGS:
+      fprintf(vmFptr, "%s %s %d\n", vmComm[action], vmMem[ARG_MEM],
+              val->vmStackNum - 1 + isMethod);
+      break;
+    case LOCAL_VAR:
+      fprintf(vmFptr, "%s %s %d\n", vmComm[action], vmMem[LOCAL_MEM],
+              val->vmStackNum);
+      break;
+    default:
+      printf("major big time errs");
+      return 0;
+    }
+    return 1;
+  }
+  return 0;
+}
 
 Boolean strcmpList(char *word, char **acceptCases) {
   // if empty acceptCases return true (for accepting ID tokens)
@@ -356,8 +390,10 @@ void subroutineDeclar() {
     subKind = CONSTRUCTOR;
   else if (0 == strncmp("function", subToken.lx, 8))
     subKind = FUNCTION;
-  else
+  else {
     subKind = METHOD;
+    isMethod = 1;
+  }
 
   // type() | 'void'
   token = PeekNextToken();
@@ -382,7 +418,6 @@ void subroutineDeclar() {
                          subroutineHashTable))
       error(id, redefineMsg, redecIdentifier);
     // <<<<<< insert class ref
-    // TODO: FIND ONE LINE SETTING
     Token implicitArg;
     implicitArg.tp = ID;
     strncpy(implicitArg.lx, "this", 128);
@@ -453,6 +488,7 @@ void subroutineDeclar() {
 
   // reset subrHashtable pointer
   subroutineHashTable = NULL;
+  isMethod = 0;
 }
 
 void paramList() {
@@ -592,9 +628,8 @@ void varStmt() {
   eatTerminal(symbolSet, (char *[]){";", "\0"}, semicolonExpected, ";");
 }
 
-// TODO: code gen
 void letStmt() {
-  Token token;
+  Token token, final;
 
   // 'let'
   eatTerminal(reswordSet, (char *[]){"let", "\0"}, syntaxError,
@@ -602,7 +637,7 @@ void letStmt() {
 
   // identifier
   token = PeekNextToken();
-  eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+  final = eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
   if (!isCodeGenning() && NULL == findHashRow(token.lx, classHashTable) &&
       NULL == findHashRow(token.lx, subroutineHashTable))
     addUndeclar(token, classHashTable->name);
@@ -626,6 +661,12 @@ void letStmt() {
     // ']'
     eatTerminal(symbolSet, (char *[]){"]", "\0"}, closeBracketExpected,
                 "']' symbol");
+
+    if (isCodeGenning()) {
+      commAtVarLocation(PUSH, final.lx);
+      fprintf(vmFptr, "%s\n", vmComm[ADD]);
+      isArray = 1; // start assigning to array val
+    }
   }
 
   // '='
@@ -636,12 +677,27 @@ void letStmt() {
   if (!eatNonTerminal(&expr, isExpr()))
     error(token, "a expression", syntaxError);
 
+  if (isCodeGenning()) {
+    // todo: code gen different for arrays
+    if (!isArray) {
+      commAtVarLocation(POP, final.lx);
+    } else {
+      fprintf(vmFptr, "%s %s 0\n", vmComm[POP], vmMem[TEMP_MEM]);
+      fprintf(vmFptr, "%s %s\n", vmComm[POP], vmMem[PTR_THAT]);
+      fprintf(vmFptr, "%s %s 0\n", vmComm[PUSH], vmMem[TEMP_MEM]);
+      fprintf(vmFptr, "%s %s 0\n", vmComm[POP], vmMem[THAT_MEM]);
+    }
+    isArray = 0; // no longer assigning to array val
+  }
+
   // ';'
   eatTerminal(symbolSet, (char *[]){";", "\0"}, semicolonExpected, ";");
 }
 
 // TODO: code gen
 void ifStmt() {
+  int thisCondLabel = condLableIter;
+  condLableIter++;
   // 'if'
   eatTerminal(reswordSet, (char *[]){"if", "\0"}, syntaxError,
               "'if' resword expected");
@@ -651,16 +707,22 @@ void ifStmt() {
               "'(' symbol");
 
   Token token = PeekNextToken(); // to give it a token to return
-  // printf("\n\n\n%s\n\n\n", token.lx);
+
   // expr()
   if (!eatNonTerminal(&expr, isExpr()))
     error(token, "a expression", syntaxError);
 
-  // printf("\n\n\n%s\n\n\n", token.lx);
   // ')'
   eatTerminal(symbolSet, (char *[]){")", "\0"}, closeParenExpected,
               "')' symbol");
-  // printf("\n\n\n%s\n\n\n", token.lx);
+
+  // todo: code gen if-goto, go to stmt end OR else
+  if (isCodeGenning()) {
+    fprintf(vmFptr, "%s IF_TRUE%d\n", vmComm[IFGOTO], thisCondLabel);
+    fprintf(vmFptr, "%s IF_FALSE%d\n", vmComm[GOTO], thisCondLabel);
+    fprintf(vmFptr, "%s IF_TRUE%d\n", vmComm[LABEL], thisCondLabel);
+  }
+  // todo: code gen
 
   // '{'
   eatTerminal(symbolSet, (char *[]){"{", "\0"}, openBraceExpected,
@@ -690,6 +752,12 @@ void ifStmt() {
   if (ERR == token.tp)
     error(token, "valid lexical token", lexerErr);
   if (RESWORD == token.tp && strcmpList(token.lx, (char *[]){"else", "\0"})) {
+
+    if (isCodeGenning()) {
+      fprintf(vmFptr, "%s IF_END%d\n", vmComm[GOTO], thisCondLabel);
+      fprintf(vmFptr, "%s IF_FALSE%d\n", vmComm[LABEL], thisCondLabel);
+    }
+
     // 'else'
     eatTerminal(reswordSet, (char *[]){"else", "\0"}, syntaxError,
                 "'else' resword expected");
@@ -711,16 +779,29 @@ void ifStmt() {
     // '}'
     eatTerminal(symbolSet, (char *[]){"}", "\0"}, closeBraceExpected,
                 "'}' symbol");
+
+    if (isCodeGenning()) {
+      fprintf(vmFptr, "%s IF_END%d\n", vmComm[LABEL], thisCondLabel);
+    }
+  } else {
+    // if there is no 'else'
+    if (isCodeGenning()) {
+      fprintf(vmFptr, "%s IF_FALSE%d\n", vmComm[LABEL], thisCondLabel);
+    }
   }
 }
 
-// TODO: code gen
 void whileStmt() {
   Token token;
+  int thisCondLabel = loopLableIter;
+  loopLableIter++;
 
   // while
   eatTerminal(reswordSet, (char *[]){"while", "\0"}, syntaxError,
               "'while' resword expected");
+
+  if (isCodeGenning())
+    fprintf(vmFptr, "%s WHILE_EXP%d\n", vmComm[LABEL], thisCondLabel);
 
   // '('
   eatTerminal(symbolSet, (char *[]){"(", "\0"}, openParenExpected,
@@ -735,6 +816,11 @@ void whileStmt() {
   eatTerminal(symbolSet, (char *[]){")", "\0"}, closeParenExpected,
               "')' symbol");
 
+  if (isCodeGenning()) {
+    fprintf(vmFptr, "%s\n", vmComm[NOT]);
+    fprintf(vmFptr, "%s WHILE_END%d\n", vmComm[IFGOTO], thisCondLabel);
+  }
+
   // '{'
   eatTerminal(symbolSet, (char *[]){"{", "\0"}, openBraceExpected,
               "'{' symbol");
@@ -748,6 +834,11 @@ void whileStmt() {
       break;
 
     stmt();
+  }
+
+  if (isCodeGenning()) {
+    fprintf(vmFptr, "%s WHILE_EXP%d\n", vmComm[GOTO], thisCondLabel);
+    fprintf(vmFptr, "%s WHILE_END%d\n", vmComm[LABEL], thisCondLabel);
   }
 
   // '}'
@@ -767,16 +858,15 @@ void doStmt() {
   if (!eatNonTerminal(&subroutineCall, ID == token.tp))
     error(token, "valid subroutineCall", idExpected);
 
-  if (isCodeGenning())
-    fprintf(vmFptr, "%s %s 0\n", vmComm[POP], vmMem[TEMP_MEM]);
-
   // ';'
   eatTerminal(symbolSet, (char *[]){";", "\0"}, semicolonExpected, ";");
 }
 
 // TODO: code gen
 void subroutineCall() {
-  Token token, callID;
+  Token token, callID, classToken;
+  int isTypeOne = 0;
+  HashRow *class = NULL;
 
   // identifier
   callID = PeekNextToken();
@@ -792,35 +882,54 @@ void subroutineCall() {
 
     // identifier
     token = PeekNextToken();
-    eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+    classToken = eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
     HashRow *row;
-    HashRow *class = findHashRow(callID.lx, rootHT());
+    class = findHashRow(callID.lx, rootHT());
     // find class of object variable
-    if (!isCodeGenning()) {
-      // object in class var
-      if (NULL != (row = findHashRow(callID.lx, classHashTable)))
+
+    // object in class var OR object in subroutine var
+    if (NULL != (row = findHashRow(callID.lx, classHashTable)) ||
+        (NULL != subroutineHashTable &&
+         NULL != (row = findHashRow(callID.lx, subroutineHashTable)))) {
+      if (!isCodeGenning())
         addUndeclar(token, row->type);
-      // object in subroutine var
-      else if (NULL != subroutineHashTable &&
-               NULL != (row = findHashRow(callID.lx, subroutineHashTable)))
-        addUndeclar(token, row->type);
-      // find class and subroutine in future
-      else if (NULL == class) {
+      else {
+        // !!!!!!!!!!!!!!!! CODE GENERATION !!!!!!!!!!!!!!!!!!!!!
+        class = findHashRow(row->type, rootHT());
+      }
+    }
+    // find class and subroutine in future
+    else if (NULL == class) {
+      if (!isCodeGenning()) {
         addUndeclar(token, callID.lx);
         addUndeclar(callID, "");
       }
-      // find subroutine in future in known class
-      else {
-        addUndeclar(token, callID.lx);
-      }
-      // else if (NULL == findHashRow(token.lx, class->deeperTable))
-      //   addUndeclar(token, callID.lx);
     }
+    // find subroutine in future in known class
+    else {
+      if (!isCodeGenning())
+        addUndeclar(token, callID.lx);
+    }
+
+    if (isCodeGenning()) {
+      isTypeOne = 1;
+      // push the object
+      commAtVarLocation(PUSH, callID.lx);
+    }
+    // else if (NULL == findHashRow(token.lx, class->deeperTable))
+    //   addUndeclar(token, callID.lx);
+
   } else {
     // find subroutine in THIS class
     if (!isCodeGenning() && NULL == findHashRow(callID.lx, classHashTable))
       addUndeclar(callID, classHashTable->name);
+
+    if (isCodeGenning()) {
+      // call local subr
+      isTypeOne = 0;
+      fprintf(vmFptr, "%s %s\n", vmComm[PUSH], vmMem[PTR_THIS]);
+    }
   }
 
   // '('
@@ -840,6 +949,28 @@ void subroutineCall() {
   // ')'
   eatTerminal(symbolSet, (char *[]){")", "\0"}, closeParenExpected,
               "')' symbol");
+
+  if (isCodeGenning()) {
+    if (isTypeOne) {
+      assert(NULL != class);
+
+      // -1 as there is the implicit this arg
+      fprintf(
+          vmFptr, "%s %s.%s %d\n", vmComm[CALL], class->token.lx, classToken.lx,
+          findHashRow(classToken.lx, class->deeperTable)
+                  ->deeperTable->kindCounters[ARGS] -
+              1 +
+              (findHashRow(classToken.lx, class->deeperTable)->k == METHOD));
+    } else {
+      // -1 as there is the implicit this arg
+      fprintf(vmFptr, "%s %s.%s %d\n", vmComm[CALL], classHashTable->name,
+              callID.lx,
+              findHashRow(callID.lx, classHashTable)
+                      ->deeperTable->kindCounters[ARGS] -
+                  1 + (findHashRow(callID.lx, classHashTable)->k == METHOD));
+    }
+    fprintf(vmFptr, "%s %s 0\n", vmComm[POP], vmMem[TEMP_MEM]);
+  }
 }
 
 void exprList() {
@@ -1095,7 +1226,7 @@ void factor() {
 }
 
 void operand() {
-  Token token;
+  Token token, subrToken;
 
   token = PeekNextToken();
   if (ERR == token.tp)
@@ -1128,14 +1259,16 @@ void operand() {
     return;
   }
 
-  // todo: code gen this baheamoth
+  // todo: code gen behemoth
   // identifier [ '.'identifier ] [ '['expr()']' | '('exprList')']
   if (ID == token.tp) {
+    HashRow *class;
+    int isTypeOne = 0;
     // identifier
-    Token callID = PeekNextToken();
-    eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+    Token callID =
+        eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
-    // [ '.'identifier ]
+    // above [ '.'identifier ]
     token = PeekNextToken();
     if (ERR == token.tp)
       error(token, "valid lexical token", lexerErr);
@@ -1145,43 +1278,57 @@ void operand() {
 
       // identifier
       token = PeekNextToken();
-      eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
+      subrToken =
+          eatTerminal(idSet, (char *[]){"\0"}, idExpected, "identifier");
 
       // HASH TABLE INSERTION/ CHECKING
       HashRow *row;
-      HashRow *class = findHashRow(callID.lx, rootHT());
-      // find class of object variable
-      if (!isCodeGenning()) {
-        // object in class var
-        if (NULL != (row = findHashRow(callID.lx, classHashTable)))
+      class = findHashRow(callID.lx, rootHT());
+      // object in class var OR object in subroutine var
+      if (NULL != (row = findHashRow(callID.lx, classHashTable)) ||
+          (NULL != subroutineHashTable &&
+           NULL != (row = findHashRow(callID.lx, subroutineHashTable)))) {
+        if (!isCodeGenning())
           addUndeclar(token, row->type);
-        // object in subroutine var
-        else if (NULL != subroutineHashTable &&
-                 NULL != (row = findHashRow(callID.lx, subroutineHashTable)))
-          addUndeclar(token, row->type);
-        // find class and subroutine in future
-        else if (NULL == class) {
+        else {
+          // !!!!!!!!!!!!!!!! CODE GENERATION !!!!!!!!!!!!!!!!!!!!!
+          class = findHashRow(row->type, rootHT());
+        }
+      }
+      // find class and subroutine in future
+      else if (NULL == class) {
+        if (!isCodeGenning()) {
           addUndeclar(token, callID.lx);
           addUndeclar(callID, "");
         }
-        // find subroutine in future in known class
-        else {
+      }
+      // find subroutine in future in known class
+      else {
+        if (!isCodeGenning())
           addUndeclar(token, callID.lx);
-        }
-        // else if (NULL == findHashRow(token.lx, class->deeperTable))
-        //   addUndeclar(token, callID.lx);
+      }
+
+      if (isCodeGenning()) {
+        isTypeOne = 1;
+        // fprintf(vmFptr, "\n\n\nhihihihihihihihihi %s\n\n\n", subrToken.lx);
       }
     } else {
       // HASH TABLE INSERTION/ CHECKING
       // find VAR in THIS class or VAR in subroutinHashTable
       HashTable *t;
-      if (!isCodeGenning() &&
-          NULL == findHashRow(callID.lx, (t = classHashTable)) &&
+      if (NULL == findHashRow(callID.lx, (t = classHashTable)) &&
           (NULL == subroutineHashTable ||
-           NULL == findHashRow(callID.lx, (t = subroutineHashTable))))
-        addUndeclar(callID, t->name);
+           NULL == findHashRow(callID.lx, (t = subroutineHashTable)))) {
+        if (isCodeGenning()) {
+          isTypeOne = 0;
+        } else {
+          addUndeclar(callID, t->name);
+        }
+      }
+      if (isCodeGenning()) {
+        isTypeOne = 0;
+      }
     }
-
     // [ '['expr()']' | '('exprList')' ]
     token = PeekNextToken();
 
@@ -1193,7 +1340,6 @@ void operand() {
 
       // expr()
       token = PeekNextToken();
-      // printf("\n\n%s\n\n", token.lx);
       if (ERR == token.tp)
         error(token, "valid lexical token", lexerErr);
       if (isExpr()) {
@@ -1205,11 +1351,63 @@ void operand() {
       // ']'
       eatTerminal(symbolSet, (char *[]){"]", "\0"}, closeBracketExpected, "]");
 
+      /// pls work code
+      if (isCodeGenning()) {
+        // fprintf(vmFptr, "\n\n\nbig print %s\n\n\n", callID.lx);
+        // identifier.identifier
+        if (isTypeOne) {
+          // fprintf(vmFptr, "\n\n\nsmaller\n\n\n");
+          HashRow *row;
+
+          // if object and not class
+          class = findHashRow(callID.lx, rootHT());
+          // if object and not class
+          if ((NULL != (row = findHashRow(callID.lx, classHashTable)) ||
+               (NULL != subroutineHashTable &&
+                NULL != (row = findHashRow(callID.lx, subroutineHashTable))))) {
+            fprintf(vmFptr, "\n\n\nhehrhehrher\n\n\n");
+            class = findHashRow(row->type, rootHT());
+            // push object
+            commAtVarLocation(PUSH, row->token.lx);
+          }
+
+          assert(NULL != class);
+
+          fprintf(
+              vmFptr, "%s %s.%s %d\n", vmComm[CALL], class->token.lx,
+              subrToken.lx,
+              findHashRow(subrToken.lx, class->deeperTable)
+                      ->deeperTable->kindCounters[ARGS] -
+                  1 +
+                  (findHashRow(subrToken.lx, class->deeperTable)->k == METHOD));
+
+        }
+        // just identifier
+        else {
+          // fprintf(vmFptr, "\n\n\n222smaller\n\n\n");
+          // if object and not class
+          // HashRow *row;
+          // if (NULL != (row = findHashRow(callID.lx, classHashTable))) {
+          //   // local subroutine
+          //   fprintf(vmFptr, "%s %s.%s %d\n", vmComm[CALL],
+          //   classHashTable->name,
+          //           callID.lx, row->deeperTable->kindCounters[ARGS] - 1);
+          // } else {
+          // variable
+          commAtVarLocation(PUSH, callID.lx);
+          // }
+        }
+        fprintf(vmFptr, "%s\n", vmComm[ADD]);
+        fprintf(vmFptr, "%s %s\n", vmComm[POP], vmMem[PTR_THAT]);
+        fprintf(vmFptr, "%s %s 0\n", vmComm[PUSH], vmMem[THAT_MEM]);
+      }
+
       return;
     }
 
     // '(' exprList() ')'
     if (strcmpList(token.lx, (char *[]){"(", "\0"})) {
+
       // '('
       eatTerminal(symbolSet, (char *[]){"(", "\0"}, openParenExpected,
                   "'(' symbol at end of expression");
@@ -1227,8 +1425,97 @@ void operand() {
       // ')'
       eatTerminal(symbolSet, (char *[]){")", "\0"}, closeBracketExpected,
                   "')' symbol at end of expression ");
+      // pls work
+      if (isCodeGenning()) {
+        // fprintf(vmFptr, "\n\n\nbig print %s\n\n\n", callID.lx);
+        // identifier.identifier
+        if (isTypeOne) {
+          // fprintf(vmFptr, "\n\n\nsmaller\n\n\n");
+          HashRow *row;
 
+          class = findHashRow(callID.lx, rootHT());
+          // if object and not class
+          if ((NULL != (row = findHashRow(callID.lx, classHashTable)) ||
+               (NULL != subroutineHashTable &&
+                NULL != (row = findHashRow(callID.lx, subroutineHashTable))))) {
+            class = findHashRow(row->type, rootHT());
+            // push object
+            commAtVarLocation(PUSH, row->token.lx);
+          }
+
+          assert(NULL != class);
+
+          fprintf(
+              vmFptr, "%s %s.%s %d\n", vmComm[CALL], class->token.lx,
+              subrToken.lx,
+              findHashRow(subrToken.lx, class->deeperTable)
+                      ->deeperTable->kindCounters[ARGS] -
+                  1 +
+                  (findHashRow(subrToken.lx, class->deeperTable)->k == METHOD));
+
+        }
+        // just identifier
+        else {
+          // fprintf(vmFptr, "\n\n\n222smaller\n\n\n");
+          // if object and not class
+          // HashRow *row;
+          // if (NULL != (row = findHashRow(callID.lx,
+          //       classHashTable))) {
+          //         //   // local subroutine
+          //         //   fprintf(vmFptr, "%s %s.%s %d\n", vmComm[CALL],
+          //         //   classHashTable->name,
+          //         //           callID.lx,
+          //       row->deeperTable->kindCounters[ARGS]);
+          // } else {
+          // variable
+          commAtVarLocation(PUSH, callID.lx);
+          // }
+        }
+      }
       return;
+    }
+
+    if (isCodeGenning()) {
+      // fprintf(vmFptr, "\n\n\nbig print %s\n\n\n", callID.lx);
+      // identifier.identifier
+      if (isTypeOne) {
+        // fprintf(vmFptr, "\n\n\nsmaller\n\n\n");
+        HashRow *row;
+
+        class = findHashRow(callID.lx, rootHT());
+        // if object and not class
+        if ((NULL != (row = findHashRow(callID.lx, classHashTable)) ||
+             (NULL != subroutineHashTable &&
+              NULL != (row = findHashRow(callID.lx, subroutineHashTable))))) {
+          class = findHashRow(row->type, rootHT());
+          // push object
+          commAtVarLocation(PUSH, row->token.lx);
+        }
+
+        assert(NULL != class);
+
+        fprintf(vmFptr, "%s %s.%s %d\n", vmComm[CALL], class->token.lx,
+                subrToken.lx,
+                findHashRow(subrToken.lx, class->deeperTable)
+                        ->deeperTable->kindCounters[ARGS] -
+                    1);
+
+      }
+      // just identifier
+      else {
+        // fprintf(vmFptr, "\n\n\n222smaller\n\n\n");
+        // if object and not class
+        HashRow *row;
+        // if (NULL != (row = findHashRow(callID.lx, classHashTable))) {
+        //   // local subroutine
+        //   fprintf(vmFptr, "%s %s.%s %d\n", vmComm[CALL],
+        //   classHashTable->name,
+        //           callID.lx, row->deeperTable->kindCounters[ARGS]);
+        // } else {
+        // variable
+        commAtVarLocation(PUSH, callID.lx);
+        // }
+      }
     }
 
     return;
@@ -1264,10 +1551,10 @@ void operand() {
 
   if (isCodeGenning()) {
     if (!strncmp(consts.lx, "true", 5)) {
-      fprintf(vmFptr, "%s %s 1\n", vmComm[PUSH], vmMem[CONST_MEM]);
-      fprintf(vmFptr, "%s\n", vmComm[NEG]);
+      fprintf(vmFptr, "%s %s 0\n", vmComm[PUSH], vmMem[CONST_MEM]);
+      fprintf(vmFptr, "%s\n", vmComm[NOT]);
     } else if (!strncmp(consts.lx, "this", 5)) {
-      // todo: code gen
+      fprintf(vmFptr, "%s %s\n", vmComm[PUSH], vmMem[PTR_THIS]);
     }
     // false of null
     else {
@@ -1290,6 +1577,9 @@ int InitParser(char *file_name) {
   if (isCodeGenning())
     if (NULL == (vmFptr = fopen(getCodeGenFile(), "w")))
       return 0;
+
+  condLableIter = 0;
+  loopLableIter = 0;
 
   return InitLexer(file_name);
 }
@@ -1317,6 +1607,9 @@ int StopParser() {
     fclose(vmFptr);
     vmFptr = NULL;
   }
+
+  condLableIter = -1;
+  loopLableIter = -1;
 
   return StopLexer();
 }
