@@ -1310,6 +1310,7 @@ void operand() {
 
       if (isCodeGenning()) {
         isTypeOne = 1;
+        commAtVarLocation(PUSH, callID.lx);
         // fprintf(vmFptr, "\n\n\nhihihihihihihihihi %s\n\n\n", subrToken.lx);
       }
     } else {
@@ -1368,7 +1369,7 @@ void operand() {
             fprintf(vmFptr, "\n\n\nhehrhehrher\n\n\n");
             class = findHashRow(row->type, rootHT());
             // push object
-            commAtVarLocation(PUSH, row->token.lx);
+            // commAtVarLocation(PUSH, row->token.lx);
           }
 
           assert(NULL != class);
@@ -1440,7 +1441,7 @@ void operand() {
                 NULL != (row = findHashRow(callID.lx, subroutineHashTable))))) {
             class = findHashRow(row->type, rootHT());
             // push object
-            commAtVarLocation(PUSH, row->token.lx);
+            // commAtVarLocation(PUSH, row->token.lx);
           }
 
           assert(NULL != class);
@@ -1489,7 +1490,7 @@ void operand() {
               NULL != (row = findHashRow(callID.lx, subroutineHashTable))))) {
           class = findHashRow(row->type, rootHT());
           // push object
-          commAtVarLocation(PUSH, row->token.lx);
+          // commAtVarLocation(PUSH, row->token.lx);
         }
 
         assert(NULL != class);
